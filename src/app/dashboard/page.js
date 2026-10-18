@@ -1,18 +1,13 @@
 "use client";
 
 import {
-  AlertCircle,
   Calendar,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   Clock,
   DollarSign,
-  PlusCircle,
-  Settings,
   ShieldCheck,
   Sparkles,
-  Store,
   Users,
 } from "lucide-react";
 import Link from "next/link";

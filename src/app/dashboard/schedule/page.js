@@ -3,18 +3,16 @@
 import {
   AlertCircle,
   ArrowLeft,
-  Calendar,
   CheckCircle2,
   Clock,
   Plus,
   Save,
   ShieldAlert,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   addDateOverride,
   getBusinesses,
@@ -23,7 +21,7 @@ import {
   updateWeeklySchedule,
 } from "../../../lib/api";
 
-export default function ScheduleManagerPage() {
+function ScheduleManagerContent() {
   const searchParams = useSearchParams();
   const queryBizId = searchParams.get("businessId");
 
@@ -36,11 +34,18 @@ export default function ScheduleManagerPage() {
 
   // New Date Override Form State
   const [overrideForm, setOverrideForm] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: "",
     isClosed: true,
     reason: "Afternoon Cleaning / Maintenance Shutdown",
     intervals: [{ open: "09:00", close: "13:00", label: "Morning Only" }],
   });
+
+  useEffect(() => {
+    setOverrideForm((prev) => ({
+      ...prev,
+      date: new Date().toISOString().split("T")[0],
+    }));
+  }, []);
 
   const dayNames = [
     "Sunday",
@@ -122,7 +127,7 @@ export default function ScheduleManagerPage() {
   const removeIntervalFromDay = (dayIndex, intervalIndex) => {
     const updated = { ...schedule };
     const day = updated.weeklyHours.find((d) => d.dayOfWeek === dayIndex);
-    if (day && day.intervals) {
+    if (day?.intervals) {
       day.intervals.splice(intervalIndex, 1);
       setSchedule(updated);
     }
@@ -132,7 +137,7 @@ export default function ScheduleManagerPage() {
   const updateIntervalValue = (dayIndex, intervalIndex, field, value) => {
     const updated = { ...schedule };
     const day = updated.weeklyHours.find((d) => d.dayOfWeek === dayIndex);
-    if (day && day.intervals?.[intervalIndex]) {
+    if (day?.intervals?.[intervalIndex]) {
       day.intervals[intervalIndex][field] = value;
       setSchedule(updated);
     }
@@ -628,5 +633,22 @@ export default function ScheduleManagerPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ScheduleManagerPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-slate-400">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <span>Loading schedule manager...</span>
+          </div>
+        </div>
+      }
+    >
+      <ScheduleManagerContent />
+    </Suspense>
   );
 }

@@ -7,13 +7,10 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  Mail,
   MapPin,
   Phone,
   Printer,
   QrCode,
-  ShieldCheck,
-  User,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -28,7 +25,7 @@ export default function BookingConfirmationPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  const [cancelSuccess, setCancelSuccess] = useState(false);
+  const [_cancelSuccess, setCancelSuccess] = useState(false);
 
   useEffect(() => {
     let isMounted = true;

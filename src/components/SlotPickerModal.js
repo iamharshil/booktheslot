@@ -4,12 +4,10 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle2,
-  ChevronRight,
   Clock,
   CreditCard,
   Loader2,
   ShieldCheck,
-  Sparkles,
   Users,
   X,
 } from "lucide-react";
@@ -25,9 +23,9 @@ export default function SlotPickerModal({
 }) {
   const router = useRouter();
 
-  // Selected date state (defaults to today or tomorrow)
-  const todayStr = new Date().toISOString().split("T")[0];
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Selected date state (defaults to today or tomorrow on client)
+  const [selectedDate, setSelectedDate] = useState("");
+  const [datesList, setDatesList] = useState([]);
   const [slotData, setSlotData] = useState(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -44,20 +42,24 @@ export default function SlotPickerModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isConflict, setIsConflict] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(null);
+  const [_paymentSuccess, setPaymentSuccess] = useState(null);
 
-  // Generate next 14 dates for quick selection
-  const datesList = [];
-  const curr = new Date();
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(curr);
-    d.setDate(curr.getDate() + i);
-    const dateStr = d.toISOString().split("T")[0];
-    const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-    const monthName = d.toLocaleDateString("en-US", { month: "short" });
-    const dayNum = d.getDate();
-    datesList.push({ dateStr, dayName, monthName, dayNum, isToday: i === 0 });
-  }
+  // Generate next 14 dates on client mount
+  useEffect(() => {
+    const curr = new Date();
+    const list = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(curr);
+      d.setDate(curr.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const monthName = d.toLocaleDateString("en-US", { month: "short" });
+      const dayNum = d.getDate();
+      list.push({ dateStr, dayName, monthName, dayNum, isToday: i === 0 });
+    }
+    setDatesList(list);
+    setSelectedDate(list[0].dateStr);
+  }, []);
 
   // Load available slots whenever date or service changes
   useEffect(() => {

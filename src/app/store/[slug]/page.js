@@ -4,14 +4,12 @@ import {
   AlertCircle,
   ArrowLeft,
   Calendar,
-  CheckCircle,
   ChevronRight,
   Clock,
   Mail,
   MapPin,
   Phone,
   ShieldCheck,
-  Sparkles,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -29,6 +27,11 @@ export default function StorePage({ params }) {
   const [error, setError] = useState("");
   const [selectedService, setSelectedService] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentDay, setCurrentDay] = useState(-1);
+
+  useEffect(() => {
+    setCurrentDay(new Date().getDay());
+  }, []);
 
   const dayNames = [
     "Sunday",
@@ -287,7 +290,7 @@ export default function StorePage({ params }) {
             <div className="flex flex-col gap-3 text-xs">
               {business.schedule?.weeklyHours?.map((day) => {
                 const dayName = dayNames[day.dayOfWeek];
-                const isToday = new Date().getDay() === day.dayOfWeek;
+                const isToday = currentDay === day.dayOfWeek;
 
                 return (
                   <div

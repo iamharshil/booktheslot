@@ -4,12 +4,8 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Building,
-  CheckCircle2,
   Clock,
-  ShieldCheck,
   Sparkles,
-  Store,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

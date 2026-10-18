@@ -5,16 +5,14 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  DollarSign,
   Info,
   Plus,
-  Sparkles,
   Trash2,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   createService,
   deleteService,
@@ -22,7 +20,7 @@ import {
   getServicesByBusiness,
 } from "../../../lib/api";
 
-export default function ServicesManagerPage() {
+function ServicesManagerContent() {
   const searchParams = useSearchParams();
   const queryBizId = searchParams.get("businessId");
 
@@ -434,5 +432,22 @@ export default function ServicesManagerPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ServicesManagerPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-slate-400">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+            <span>Loading services manager...</span>
+          </div>
+        </div>
+      }
+    >
+      <ServicesManagerContent />
+    </Suspense>
   );
 }

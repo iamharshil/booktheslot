@@ -10,7 +10,6 @@ import {
   Sparkles,
   Store,
   Users,
-  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -63,21 +62,21 @@ export default function HomePage() {
   return (
     <div className="flex flex-col gap-20 pb-20">
       {/* Hero Section */}
-      <section className="relative pt-12 sm:pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <section className="relative pt-8 sm:pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
           {/* Hero Copy */}
           <div className="lg:col-span-7 flex flex-col gap-6 text-left">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold w-fit">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold w-fit shadow-sm backdrop-blur-md">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
               <span>Next-Gen Multi-Shift Scheduling Platform</span>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12]">
               Every Business. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400">
-                Any Break, Any Shift,
+                Any Shift, Any Break.
               </span>{" "}
-              Zero Conflicts.
+              <span className="inline-block">Zero Conflicts.</span>
             </h1>
 
             <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed">
@@ -86,10 +85,10 @@ export default function HomePage() {
               minutes to 2 hours, and take real-time Razorpay payments.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center gap-4 pt-1">
               <a
                 href="#explore-stores"
-                className="btn-primary text-base px-6 py-3.5 rounded-xl"
+                className="btn-primary text-base px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-500/30"
               >
                 <span>Explore Live Stores</span>
                 <ArrowRight className="w-4 h-4" />
@@ -130,23 +129,23 @@ export default function HomePage() {
           </div>
 
           {/* Hero Banner Visual */}
-          <div className="lg:col-span-5 relative">
-            <div className="relative rounded-2xl overflow-hidden border border-white/[0.12] shadow-2xl shadow-indigo-500/20 group">
+          <div className="lg:col-span-5 relative mt-4 lg:mt-0">
+            <div className="relative rounded-2xl overflow-hidden border border-white/[0.14] shadow-2xl shadow-indigo-500/20 group bg-slate-900">
               <img
                 src="/hero-banner.jpg"
                 alt="booktheslot interactive preview"
                 className="w-full h-auto object-cover transform group-hover:scale-102 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-tr from-[#090d16]/40 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#090d16]/30 via-transparent to-transparent pointer-events-none" />
             </div>
 
             {/* Floating Glass Pill */}
-            <div className="absolute -bottom-6 -left-6 bg-[#0f172a]/90 backdrop-blur-xl border border-white/[0.15] p-3.5 rounded-2xl shadow-xl flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <div className="absolute bottom-3 left-3 sm:-bottom-4 sm:-left-4 z-20 bg-[#0f172a]/95 backdrop-blur-2xl border border-white/[0.18] p-3 rounded-xl shadow-2xl flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-white">
+                <div className="text-xs font-bold text-white tracking-tight">
                   Atomic Concurrency Lock
                 </div>
                 <div className="text-[11px] text-slate-400">
@@ -159,7 +158,7 @@ export default function HomePage() {
       </section>
 
       {/* Feature Pillar Highlights */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-4 sm:mt-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="glass-panel p-6 flex flex-col gap-3">
             <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">

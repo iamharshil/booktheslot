@@ -86,7 +86,7 @@ export default function Footer() {
         </div>
 
         <div className="pt-8 border-t border-white/[0.05] flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-          <p>© {new Date().getFullYear()} booktheslot. All rights reserved.</p>
+          <p>© 2026 booktheslot. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <span>Powered by Next.js & Node.js</span>
             <span className="w-1 h-1 rounded-full bg-slate-600" />

@@ -1,11 +1,4 @@
-import {
-  ArrowRight,
-  Clock,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Clock, MapPin, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 
 export default function BusinessCard({ business }) {
