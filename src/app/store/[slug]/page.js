@@ -126,10 +126,10 @@ export default function StorePage({ params }) {
 
       {/* Store Details Header Card */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 sm:-mt-32 relative z-10 w-full">
-        <div className="glass-panel p-6 sm:p-8 flex flex-col md:flex-row gap-6 items-start justify-between">
+        <div className="glass-panel p-6 sm:p-8 flex flex-col md:flex-row gap-6 items-start justify-between border-white/[0.14] shadow-2xl">
           <div className="flex flex-col sm:flex-row gap-5 items-start">
             {/* Logo */}
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/15 bg-slate-800 shadow-xl flex-shrink-0">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-slate-900 shadow-2xl flex-shrink-0">
               <img
                 src={business.logoUrl || business.bannerUrl}
                 alt={business.name}
@@ -140,12 +140,12 @@ export default function StorePage({ params }) {
             {/* Title & Contact */}
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2.5">
-                <span className="badge badge-purple text-xs">
+                <span className="badge badge-purple text-xs font-bold">
                   {business.category}
                 </span>
-                <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-0.5 rounded-full border border-emerald-500/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live & Accepting Bookings
+                  Live & Accepting Appointments
                 </span>
               </div>
 
@@ -157,21 +157,21 @@ export default function StorePage({ params }) {
                 {business.tagline || business.description}
               </p>
 
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-2">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-2 font-medium">
                 {business.address && (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/[0.06]">
                     <MapPin className="w-3.5 h-3.5 text-indigo-400" />
                     {business.address}, {business.city}
                   </span>
                 )}
                 {business.phone && (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/[0.06]">
                     <Phone className="w-3.5 h-3.5 text-emerald-400" />
                     {business.phone}
                   </span>
                 )}
                 {business.email && (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/[0.06]">
                     <Mail className="w-3.5 h-3.5 text-purple-400" />
                     {business.email}
                   </span>
@@ -184,14 +184,14 @@ export default function StorePage({ params }) {
           <div className="flex flex-col gap-2 sm:items-end w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-white/[0.08]">
             <a
               href="#services-section"
-              className="btn-primary text-sm px-6 py-3 rounded-xl flex items-center justify-center gap-2 w-full sm:w-auto"
+              className="btn-primary text-sm px-6 py-3 rounded-xl flex items-center justify-center gap-2 w-full sm:w-auto shadow-lg shadow-indigo-600/30"
             >
               <Calendar className="w-4 h-4" />
-              <span>Select Service & Slot</span>
+              <span>Book Appointment</span>
             </a>
-            <div className="text-[11px] text-slate-400 flex items-center gap-1">
+            <div className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Razorpay Verified Merchant</span>
+              <span>Razorpay Verified Business</span>
             </div>
           </div>
         </div>
@@ -206,15 +206,15 @@ export default function StorePage({ params }) {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white">
+              <h2 className="text-2xl font-extrabold text-white tracking-tight">
                 Available Services
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Choose a service to view open slots tailored to its exact
-                duration and staff capacity.
+                Choose a service to view open slots tailored to its duration and
+                concurrent staff capacity.
               </p>
             </div>
-            <span className="text-xs font-semibold text-slate-400 bg-white/[0.04] px-3 py-1.5 rounded-lg border border-white/[0.06]">
+            <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-xl border border-indigo-500/20">
               {business.services?.length || 0} Services
             </span>
           </div>
@@ -223,11 +223,11 @@ export default function StorePage({ params }) {
             {business.services?.map((svc) => (
               <div
                 key={svc._id}
-                className="glass-panel p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 group"
+                className="glass-panel p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 group hover:border-indigo-500/40 transition-all"
               >
                 <div className="flex flex-col gap-2 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">
+                    <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">
                       {svc.name}
                     </h3>
                     <span className="badge badge-purple text-[11px]">
@@ -239,28 +239,31 @@ export default function StorePage({ params }) {
                     {svc.description}
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
-                    <span className="flex items-center gap-1.5 text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-md border border-indigo-500/20">
-                      <Clock className="w-3.5 h-3.5" />
-                      Duration: {svc.durationMinutes} mins
+                  <div className="flex flex-wrap items-center gap-2.5 pt-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{svc.durationMinutes} mins duration</span>
                     </span>
 
-                    <span className="flex items-center gap-1.5 text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                      <Users className="w-3.5 h-3.5" />
-                      Capacity: {svc.capacity}{" "}
-                      {svc.capacity > 1 ? "Concurrent Staff" : "Staff"}
+                    <span className="flex items-center gap-1.5 text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 font-medium">
+                      <Users className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>
+                        Capacity: {svc.capacity}{" "}
+                        {svc.capacity > 1 ? "Concurrent Staff" : "Staff"}
+                      </span>
                     </span>
                   </div>
                 </div>
 
                 <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-white/[0.08]">
-                  <div className="text-xl font-extrabold text-white">
+                  <div className="text-2xl font-extrabold text-white">
                     ₹{svc.price}
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => handleBookService(svc)}
-                    className="btn-primary text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5"
+                    className="btn-primary text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5 font-bold shadow-md shadow-indigo-600/30"
                   >
                     <span>Book Slot</span>
                     <ChevronRight className="w-3.5 h-3.5" />
