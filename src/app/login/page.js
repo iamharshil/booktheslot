@@ -68,7 +68,13 @@ export default function LoginPage() {
         if (profile?.data) user = profile.data;
       }
       const hasBusiness = Boolean(user?.businesses?.length);
-      router.push(getSafeDestination(user?.role, hasBusiness));
+      const destination =
+        isRegistering && user?.role === "customer"
+          ? "/onboarding"
+          : isRegistering && user?.role === "merchant"
+            ? "/onboarding/business"
+          : getSafeDestination(user?.role, hasBusiness);
+      router.push(destination);
       router.refresh();
     } catch (err) {
       setError(err.message || "Unable to continue");

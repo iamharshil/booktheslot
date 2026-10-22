@@ -25,8 +25,10 @@ const dayNames = [
   "Saturday",
 ];
 
-function displayTime(value) {
+function displayTime(value, format = "12h") {
   const [hours, minutes] = value.split(":").map(Number);
+  if (format === "24h")
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
@@ -129,7 +131,10 @@ export default function StorePage({ params }) {
             className="h-full w-full object-cover"
           />
         ) : (
-          <div aria-hidden="true" className="public-store-banner-overlay h-full w-full" />
+          <div
+            aria-hidden="true"
+            className="public-store-banner-overlay h-full w-full"
+          />
         )}
 
         <div className="absolute top-6 left-4 sm:left-8">
@@ -156,7 +161,10 @@ export default function StorePage({ params }) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div aria-hidden="true" className="public-store-logo-placeholder h-full w-full">
+                <div
+                  aria-hidden="true"
+                  className="public-store-logo-placeholder h-full w-full"
+                >
                   {business.name.slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -245,14 +253,20 @@ export default function StorePage({ params }) {
 
           {business.services?.length ? (
             <div className="flex flex-col gap-4">
-              {business.services?.map((svc) => (
+              {business.services?.map((svc) => {
+                const photos = svc.imageUrls?.length
+                  ? svc.imageUrls
+                  : svc.imageUrl
+                    ? [svc.imageUrl]
+                    : [];
+                return (
                 <div
                   key={svc._id}
                   className="public-service-card glass-panel p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 group hover:border-indigo-500/40 transition-all"
                 >
                   <div className="public-service-art" aria-hidden="true">
-                    {svc.imageUrl ? (
-                      <img src={svc.imageUrl} alt="" loading="lazy" />
+                    {photos[0] ? (
+                      <img src={photos[0]} alt="" loading="lazy" />
                     ) : (
                       <Clock className="h-6 w-6" />
                     )}
@@ -270,6 +284,14 @@ export default function StorePage({ params }) {
                     <p className="text-xs text-slate-400 leading-relaxed max-w-xl">
                       {svc.description}
                     </p>
+
+                    {photos.length > 1 && (
+                      <div className="service-photo-strip" aria-label={`${photos.length} service photos`}>
+                        {photos.slice(1).map((photo, index) => (
+                          <img key={photo} src={photo} alt={`${svc.name} photo ${index + 2}`} loading="lazy" />
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-2.5 pt-2 text-xs">
                       <span className="flex items-center gap-1.5 text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 font-medium">
@@ -299,7 +321,8 @@ export default function StorePage({ params }) {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="surface px-5 py-10 text-sm text-[var(--muted-ink)]">
@@ -318,7 +341,7 @@ export default function StorePage({ params }) {
                   Business Hours & Shifts
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Includes multi-shift hours & afternoon breaks
+                  View regular opening hours and listed closures.
                 </p>
               </div>
             </div>
@@ -367,7 +390,15 @@ export default function StorePage({ params }) {
                           >
                             <span>{inv.label || `Shift ${idx + 1}`}</span>
                             <span className="font-mono text-slate-200">
-                              {displayTime(inv.open)} – {displayTime(inv.close)}
+                              {displayTime(
+                                inv.open,
+                                business.settings?.timeFormat,
+                              )}{" "}
+                              –{" "}
+                              {displayTime(
+                                inv.close,
+                                business.settings?.timeFormat,
+                              )}
                             </span>
                           </div>
                         ))}

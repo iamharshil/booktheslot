@@ -6,6 +6,7 @@ export default function BusinessCard({ business }) {
     <article className="group overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--raised)]">
       <Link
         href={`/store/${business.slug}`}
+        prefetch
         className="block focus-visible:outline-offset-[-3px]"
         aria-label={`View services and booking times at ${business.name}`}
       >

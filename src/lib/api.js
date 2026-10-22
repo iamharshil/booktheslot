@@ -37,9 +37,9 @@ async function request(endpoint, options = {}) {
 }
 
 // Businesses
-export const getBusinesses = (params = {}) => {
+export const getBusinesses = (params = {}, options = {}) => {
   const query = new URLSearchParams(params).toString();
-  return request(`/businesses${query ? `?${query}` : ""}`);
+  return request(`/businesses${query ? `?${query}` : ""}`, options);
 };
 
 export const getProfile = () => request("/auth/profile");
@@ -228,6 +228,12 @@ export const completeBooking = (id) =>
   request(`/bookings/${id}/complete`, {
     method: "POST",
     body: JSON.stringify({}),
+  });
+
+export const decideBooking = (id, decision) =>
+  request(`/bookings/${id}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
   });
 
 export const getRazorpayConfig = () => {

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { toast } from "sonner";
+import ImagePicker from "../../../components/ImagePicker";
 import { useEffect, useState } from "react";
 import {
   getProfile,
@@ -21,17 +23,23 @@ const defaults = {
   bannerUrl: "",
   timezone: "Asia/Kolkata",
   paymentMode: "full",
+  timeFormat: "12h",
+  bookingApprovalMode: "automatic",
   depositAmount: 0,
   cancellationCutoffHours: 24,
+  maxAdvanceDays: 5,
 };
 
 export default function BusinessSettingsPage() {
   const [businesses, setBusinesses] = useState([]);
   const [businessId, setBusinessId] = useState("");
   const [form, setForm] = useState(defaults);
-  const [notice, setNotice] = useState("");
+  const setNotice = (text, type = "error") => {
+    if (text) toast[type](text);
+  };
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState("");
+  const [uploadFiles, setUploadFiles] = useState({});
   async function uploadImage(fieldName, file) {
     if (!file || !businessId) return;
     setUploading(fieldName);
@@ -39,14 +47,18 @@ export default function BusinessSettingsPage() {
     try {
       const url = await uploadBusinessImage(businessId, file);
       setForm((current) => ({ ...current, [fieldName]: url }));
-      setNotice("Image uploaded. Save settings to publish it on your profile.");
+      setNotice("Photo uploaded. Save settings to publish it on your profile.", "success");
     } catch (error) {
       setNotice(error.message || "Could not upload image.");
     } finally {
       setUploading("");
+      setUploadFiles((current) => ({ ...current, [fieldName]: [] }));
     }
   }
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("setup") === "cover") {
+      setNotice("Your business profile is ready. The cover photo did not finish uploading, so you can try again below.", "warning");
+    }
     getProfile()
       .then((result) => {
         const list = result.data?.businesses || [];
@@ -64,8 +76,12 @@ export default function BusinessSettingsPage() {
       ...defaults,
       ...business,
       paymentMode: business.settings?.paymentMode || "full",
+      timeFormat: business.settings?.timeFormat || "12h",
+      bookingApprovalMode:
+        business.settings?.bookingApprovalMode || "automatic",
       depositAmount: business.settings?.depositAmount || 0,
       cancellationCutoffHours: business.settings?.cancellationCutoffHours ?? 24,
+      maxAdvanceDays: business.settings?.maxAdvanceDays ?? 5,
     });
   }, [businessId, businesses]);
   async function save(event) {
@@ -89,13 +105,16 @@ export default function BusinessSettingsPage() {
         settings: {
           ...old?.settings,
           paymentMode: form.paymentMode,
+          timeFormat: form.timeFormat,
+          bookingApprovalMode: form.bookingApprovalMode,
           depositAmount: Number(form.depositAmount),
           cancellationCutoffHours: Number(form.cancellationCutoffHours),
+          maxAdvanceDays: Number(form.maxAdvanceDays),
         },
       });
       const result = await getProfile();
       setBusinesses(result.data?.businesses || []);
-      setNotice("Business profile and booking policies saved.");
+      setNotice("Business profile and booking policies saved.", "success");
     } catch (error) {
       setNotice(error.message || "Could not save business settings.");
     } finally {
@@ -138,7 +157,6 @@ export default function BusinessSettingsPage() {
           ))}
         </select>
       </div>
-      {notice && <output className="surface mt-5 p-3 text-sm">{notice}</output>}
       <form onSubmit={save} className="surface mt-6 grid gap-6 p-5 sm:p-7">
         <section>
           <h2 className="text-lg font-bold">Public profile</h2>
@@ -152,28 +170,38 @@ export default function BusinessSettingsPage() {
             {field("address", "Address")}
             {field("timezone", "IANA time zone")}
             {field("logoUrl", "Logo image URL", "url")}
-            {field("bannerUrl", "Banner image URL", "url")}
+            {field("bannerUrl", "Cover photo URL", "url")}
             {[
               ["logoUrl", "Upload logo"],
-              ["bannerUrl", "Upload banner"],
+              ["bannerUrl", "Upload cover photo"],
             ].map(([key, label]) => (
-              <label className="grid gap-1 text-sm" key={`${key}-upload`}>
-                {label}
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={!businessId || Boolean(uploading)}
-                  onChange={(event) =>
-                    uploadImage(key, event.target.files?.[0])
-                  }
-                  className="rounded-md border bg-[var(--raised)] px-3 py-2"
+              <div className="grid gap-1.5 text-sm" key={`${key}-upload`}>
+                <span>{label}</span>
+                <ImagePicker
+                  files={uploadFiles[key] || []}
+                  maxFiles={1}
+                  disabled={!businessId || (Boolean(uploading) && uploading !== key)}
+                  uploading={uploading === key}
+                  onFilesChange={(files) => {
+                    setUploadFiles((current) => ({ ...current, [key]: files }));
+                    if (files[0]) uploadImage(key, files[0]);
+                  }}
+                  onError={setNotice}
+                  hint="JPG, PNG, WebP, or GIF · Up to 5 MB"
                 />
+                {form[key] && (
+                  <img
+                    src={form[key]}
+                    alt={key === "bannerUrl" ? "Business cover preview" : "Business logo preview"}
+                    className={key === "bannerUrl" ? "mt-2 h-36 w-full rounded-xl object-cover" : "mt-2 h-24 w-24 rounded-xl object-cover"}
+                  />
+                )}
                 {uploading === key && (
                   <span className="text-xs text-[var(--muted-ink)]">
                     Uploading…
                   </span>
                 )}
-              </label>
+              </div>
             ))}
             <label className="grid gap-1 text-sm sm:col-span-2">
               Description
@@ -187,6 +215,61 @@ export default function BusinessSettingsPage() {
               />
             </label>
           </div>
+        </section>
+        <section className="border-t border-[var(--hairline)] pt-5">
+          <h2 className="text-lg font-bold">Appointments</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              Time format
+              <select
+                value={form.timeFormat}
+                onChange={(event) =>
+                  setForm({ ...form, timeFormat: event.target.value })
+                }
+                className="rounded-md border bg-[var(--raised)] px-3 py-2"
+              >
+                <option value="12h">12-hour (2:30 PM)</option>
+                <option value="24h">24-hour (14:30)</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              Booking approval
+              <select
+                value={form.bookingApprovalMode}
+                onChange={(event) =>
+                  setForm({ ...form, bookingApprovalMode: event.target.value })
+                }
+                className="rounded-md border bg-[var(--raised)] px-3 py-2"
+              >
+                <option value="automatic">
+                  Automatically confirm bookings
+                </option>
+                <option value="manual">Review each request</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              Booking window (days ahead)
+              <input
+                type="number"
+                min="0"
+                max="365"
+                step="1"
+                required
+                value={form.maxAdvanceDays}
+                onChange={(event) =>
+                  setForm({ ...form, maxAdvanceDays: event.target.value })
+                }
+                className="rounded-md border bg-[var(--raised)] px-3 py-2"
+              />
+              <span className="text-xs text-[var(--muted-ink)]">
+                Customers can book today and up to {form.maxAdvanceDays || 0} days ahead. Set 0 to allow today only.
+              </span>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted-ink)]">
+            Requests awaiting review reserve their selected time until you
+            approve or reject them. Online payment is collected before review.
+          </p>
         </section>
         <section className="border-t border-[var(--hairline)] pt-5">
           <h2 className="text-lg font-bold">Payments & cancellations</h2>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
   getAdminAudit,
@@ -13,7 +14,6 @@ export default function AdminPage() {
   const [businesses, setBusinesses] = useState([]);
   const [audit, setAudit] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     Promise.all([getProfile(), getAdminBusinesses(), getAdminAudit()])
@@ -23,9 +23,7 @@ export default function AdminPage() {
         setBusinesses(businessResult.data || []);
         setAudit(auditResult.data || []);
       })
-      .catch((error) =>
-        setMessage(error.message || "Admin data could not be loaded."),
-      )
+      .catch((error) => toast.error(error.message || "Admin data could not be loaded."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -42,9 +40,9 @@ export default function AdminPage() {
       );
       const refreshed = await getAdminAudit();
       setAudit(refreshed.data || []);
-      setMessage(`${business.name} ${active ? "reactivated" : "suspended"}.`);
+      toast.success(`${business.name} ${active ? "reactivated" : "suspended"}.`);
     } catch (error) {
-      setMessage(error.message || "Business status could not be changed.");
+      toast.error(error.message || "Business status could not be changed.");
     }
   }
 
@@ -61,9 +59,6 @@ export default function AdminPage() {
       </Link>
       <p className="eyebrow mt-5">Platform operations</p>
       <h1 className="mt-2 text-3xl font-bold">Admin workspace</h1>
-      {message && (
-        <output className="surface mt-5 p-4 text-sm">{message}</output>
-      )}
       <section className="surface mt-6 overflow-x-auto p-5">
         <h2 className="text-xl font-bold">Businesses</h2>
         <table className="mt-4 w-full min-w-[640px] text-left text-sm">

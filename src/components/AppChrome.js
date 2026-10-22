@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { Toaster } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
@@ -21,6 +22,28 @@ export default function AppChrome({ children }) {
 
   return (
     <>
+      <Toaster
+        position="bottom-right"
+        theme="system"
+        richColors
+        closeButton
+        expand={false}
+        visibleToasts={4}
+        duration={4200}
+        offset={24}
+        mobileOffset={16}
+        toastOptions={{
+          classNames: {
+            toast: "app-sonner-toast",
+            title: "app-sonner-title",
+            description: "app-sonner-description",
+            success: "app-sonner-success",
+            error: "app-sonner-error",
+            warning: "app-sonner-warning",
+            info: "app-sonner-info",
+          },
+        }}
+      />
       {!businessWorkspace && <Navbar />}
       {navigating && (
         <>

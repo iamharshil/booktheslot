@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
   createStaff,
@@ -21,7 +22,6 @@ export default function StaffPage() {
     phone: "",
     serviceIds: [],
   });
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -31,9 +31,7 @@ export default function StaffPage() {
         setBusinesses(owned);
         setBusinessId(owned[0]?._id || "");
       })
-      .catch((reason) =>
-        setError(reason.message || "Could not load your businesses."),
-      );
+      .catch((reason) => toast.error(reason.message || "Could not load your businesses."));
   }, []);
 
   useEffect(() => {
@@ -46,21 +44,21 @@ export default function StaffPage() {
         setServices(serviceResult.data || []);
         setStaff(staffResult.data || []);
       })
-      .catch((reason) => setError(reason.message || "Could not load staff."));
+      .catch((reason) => toast.error(reason.message || "Could not load staff."));
   }, [businessId]);
 
   async function addMember(event) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await createStaff(businessId, form);
       setStaff((items) =>
         [...items, result.data].sort((a, b) => a.name.localeCompare(b.name)),
       );
       setForm({ name: "", email: "", phone: "", serviceIds: [] });
+      toast.success("Team member added.");
     } catch (reason) {
-      setError(reason.message || "Could not add staff member.");
+      toast.error(reason.message || "Could not add staff member.");
     } finally {
       setBusy(false);
     }
@@ -71,8 +69,9 @@ export default function StaffPage() {
     try {
       await deactivateStaff(member._id);
       setStaff((items) => items.filter((item) => item._id !== member._id));
+      toast.success(`${member.name} was deactivated.`);
     } catch (reason) {
-      setError(reason.message || "Could not deactivate staff member.");
+      toast.error(reason.message || "Could not deactivate staff member.");
     }
   }
 
@@ -103,11 +102,6 @@ export default function StaffPage() {
           ))}
         </select>
       </div>
-      {error && (
-        <p role="alert" className="surface mt-5 p-3 text-sm text-red-600">
-          {error}
-        </p>
-      )}
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <form onSubmit={addMember} className="surface grid gap-4 p-5">
           <h2 className="text-lg font-bold">Add team member</h2>

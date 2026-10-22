@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   cancelBooking,
   completeBooking,
+  decideBooking,
   getBusinessBookings,
   getProfile,
 } from "../../lib/api";
@@ -21,9 +22,11 @@ function toMinutes(time) {
   return hours * 60 + minutes;
 }
 
-function displayTime(value) {
+function displayTime(value, format = "12h") {
   const [hours, minutes] = (value || "").split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  if (format === "24h")
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
@@ -193,7 +196,7 @@ export default function MerchantDashboard() {
   async function cancel(booking) {
     if (
       !window.confirm(
-        `Cancel the ${displayTime(booking.startTime)} appointment and release this time?`,
+        `Cancel the ${displayTime(booking.startTime, selectedBusiness?.settings?.timeFormat)} appointment and release this time?`,
       )
     )
       return;
@@ -228,6 +231,32 @@ export default function MerchantDashboard() {
       setLoadError(err.message || "The appointment could not be completed.");
     } finally {
       setCompletingId("");
+    }
+  }
+
+  async function decide(booking, decision) {
+    setCancellingId(booking._id);
+    setLoadError("");
+    try {
+      const result = await decideBooking(booking._id, decision);
+      setBookings((items) =>
+        items.map((item) =>
+          item._id === booking._id
+            ? {
+                ...item,
+                status:
+                  result.data?.status ||
+                  (decision === "approve" ? "CONFIRMED" : "REJECTED"),
+              }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setLoadError(
+        err.message || "The appointment request could not be updated.",
+      );
+    } finally {
+      setCancellingId("");
     }
   }
 
@@ -526,7 +555,10 @@ export default function MerchantDashboard() {
                     className="time absolute left-2 text-xs font-semibold"
                     style={{ top: `${48 + index * rowHeight}px` }}
                   >
-                    {displayTime(booking.startTime)}
+                    {displayTime(
+                      booking.startTime,
+                      selectedBusiness?.settings?.timeFormat,
+                    )}
                   </span>
                 ))}
               </div>
@@ -556,9 +588,11 @@ export default function MerchantDashboard() {
                       ? "Completed"
                       : booking.status === "CONFIRMED"
                         ? "Confirmed · paid"
-                        : booking.status === "PENDING_PAYMENT"
-                          ? "Payment pending · time held"
-                          : booking.status;
+                        : booking.status === "PENDING_APPROVAL"
+                          ? "Awaiting your decision"
+                          : booking.status === "PENDING_PAYMENT"
+                            ? "Payment pending · time held"
+                            : booking.status;
                   return (
                     <article
                       key={booking._id}
@@ -569,8 +603,15 @@ export default function MerchantDashboard() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="time text-sm font-bold">
-                              {displayTime(booking.startTime)}–
-                              {displayTime(booking.endTime)}
+                              {displayTime(
+                                booking.startTime,
+                                selectedBusiness?.settings?.timeFormat,
+                              )}
+                              –
+                              {displayTime(
+                                booking.endTime,
+                                selectedBusiness?.settings?.timeFormat,
+                              )}
                             </span>
                             <span className="badge">{state}</span>
                           </div>
@@ -584,6 +625,28 @@ export default function MerchantDashboard() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {booking.status === "PENDING_APPROVAL" && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={Boolean(cancellingId)}
+                                onClick={() => decide(booking, "approve")}
+                                className="min-h-11 rounded-md bg-[var(--pine)] px-3 text-xs font-semibold text-white disabled:opacity-50"
+                              >
+                                {cancellingId === booking._id
+                                  ? "Saving…"
+                                  : "Approve"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={Boolean(cancellingId)}
+                                onClick={() => decide(booking, "reject")}
+                                className="min-h-11 rounded-md border border-[var(--hairline)] px-3 text-xs font-semibold disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
                           <button
                             type="button"
                             onClick={() =>

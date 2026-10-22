@@ -10,6 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
+import Brand from "../../components/Brand";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getProfile } from "../../lib/api";
@@ -93,6 +94,7 @@ export default function MerchantLayout({ children }) {
           <Link
             key={href}
             href={href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className="business-nav-link"
           >
@@ -105,16 +107,7 @@ export default function MerchantLayout({ children }) {
     return (
       <div className="business-shell">
         <aside className="business-sidebar">
-          <Link
-            href="/dashboard"
-            className="business-brand"
-            aria-label="BookTheSlot workspace"
-          >
-            <span className="business-brand-mark" aria-hidden="true">
-              B
-            </span>
-            <span>BookTheSlot</span>
-          </Link>
+          <Brand href="/dashboard" compact />
           <nav
             className="business-sidebar-nav"
             aria-label="Business navigation"

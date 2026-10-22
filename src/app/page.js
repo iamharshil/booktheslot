@@ -30,26 +30,25 @@ export default function HomePage() {
   }, [searchQuery]);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError("");
     const params = {};
     if (selectedCategory !== "All places") params.category = selectedCategory;
     if (query) params.search = query;
 
-    getBusinesses(params)
+    getBusinesses(params, { signal: controller.signal })
       .then((res) => {
-        if (active) setBusinesses(res.data || []);
+        setBusinesses(res.data || []);
       })
       .catch((err) => {
-        if (active) setError(err.message || "Businesses could not be loaded.");
+        if (err.name !== "AbortError")
+          setError(err.message || "Businesses could not be loaded.");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, [selectedCategory, query]);
 
   return (

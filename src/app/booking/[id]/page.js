@@ -13,12 +13,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
 import { use, useEffect, useState } from "react";
 import { cancelBooking, getBookingById } from "../../../lib/api";
 
-function displayTime(value) {
+function displayTime(value, format = "12h") {
   const [hours, minutes] = (value || "").split(":").map(Number);
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  if (format === "24h")
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
@@ -87,7 +90,7 @@ export default function BookingConfirmationPage({ params }) {
         }));
       }
     } catch (err) {
-      alert(`Failed to cancel: ${err.message}`);
+      toast.error(`Failed to cancel: ${err.message}`);
     } finally {
       setCancelling(false);
     }
@@ -149,18 +152,24 @@ export default function BookingConfirmationPage({ params }) {
   const isCancelled = booking.status === "CANCELLED";
   const isExpired = booking.status === "EXPIRED";
   const isPending = booking.status === "PENDING_PAYMENT";
+  const isAwaitingApproval = booking.status === "PENDING_APPROVAL";
+  const isRejected = booking.status === "REJECTED";
   const isCompleted = booking.status === "COMPLETED";
-  const statusTitle = isCancelled
-    ? "Booking Cancelled"
-    : isExpired
-      ? "Reservation Expired"
-      : isPending
-        ? "Payment Pending"
-        : isCompleted
-          ? "Appointment completed"
-          : "Appointment confirmed";
+  const statusTitle = isRejected
+    ? "Request declined"
+    : isAwaitingApproval
+      ? "Awaiting business approval"
+      : isCancelled
+        ? "Booking Cancelled"
+        : isExpired
+          ? "Reservation Expired"
+          : isPending
+            ? "Payment Pending"
+            : isCompleted
+              ? "Appointment completed"
+              : "Appointment confirmed";
   const statusBadgeClass =
-    isCancelled || isExpired
+    isCancelled || isRejected || isExpired
       ? "badge-rose"
       : isPending
         ? "badge-amber"
@@ -268,8 +277,15 @@ export default function BookingConfirmationPage({ params }) {
                   <span>Reserved Slot</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {displayTime(booking.startTime)} –{" "}
-                  {displayTime(booking.endTime)}
+                  {displayTime(
+                    booking.startTime,
+                    booking.businessId?.settings?.timeFormat,
+                  )}{" "}
+                  –{" "}
+                  {displayTime(
+                    booking.endTime,
+                    booking.businessId?.settings?.timeFormat,
+                  )}
                 </div>
                 <div className="mt-1 text-[11px] text-slate-400">
                   {booking.businessId?.timezone === "Asia/Kolkata" ||

@@ -75,10 +75,10 @@ export default function SlotPickerModal({
 
   // Use the store's bookable window, in the browser's local calendar (not UTC)
   useEffect(() => {
-    const configuredDays = Number(business?.settings?.maxAdvanceDays ?? 14);
+    const configuredDays = Number(business?.settings?.maxAdvanceDays ?? 5);
     const maxDays = Math.max(
       0,
-      Math.min(Number.isFinite(configuredDays) ? configuredDays : 14, 365),
+      Math.min(Number.isFinite(configuredDays) ? configuredDays : 5, 365),
     );
     const list = buildDateWindow(
       maxDays,

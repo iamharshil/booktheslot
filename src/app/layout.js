@@ -6,6 +6,11 @@ export const metadata = {
   title: "BookTheSlot — Appointments on your time",
   description:
     "Find local businesses, choose an available time, and book your next appointment.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }) {

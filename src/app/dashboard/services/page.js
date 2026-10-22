@@ -1,9 +1,7 @@
 "use client";
 
 import {
-  AlertCircle,
   ArrowLeft,
-  CheckCircle2,
   Clock,
   Info,
   Plus,
@@ -11,6 +9,8 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
+import ImagePicker from "../../../components/ImagePicker";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
@@ -29,7 +29,12 @@ function ServicesManagerContent() {
   const [selectedBizId, setSelectedBizId] = useState(queryBizId || "");
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState({ type: "", text: "" });
+  const setMessage = (nextMessage) => {
+    if (!nextMessage?.text) return;
+    toast[nextMessage.type === "success" ? "success" : "error"](
+      nextMessage.text,
+    );
+  };
 
   // New Service Form State
   const [form, setForm] = useState({
@@ -37,17 +42,52 @@ function ServicesManagerContent() {
     description: "",
     durationMinutes: 45,
     price: 499,
-    capacity: 2, // Default 2 employees for concurrent bookings
+    capacity: 2, // Default for simultaneous bookings
     bufferMinutes: 0,
     category: "General",
     imageUrl: "",
+    imageUrls: [],
   });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   const durationPresets = [10, 15, 30, 45, 60, 90, 120];
 
+  async function handleServicePhotos(files) {
+    setPendingFiles(files);
+    if (!files.length) return;
+    setUploadingImage(true);
+    setMessage({ type: "", text: "" });
+    try {
+      const uploadedUrls = [];
+      for (const file of files) {
+        uploadedUrls.push(await uploadBusinessImage(selectedBizId, file));
+      }
+      setForm((current) => {
+        const imageUrls = [...current.imageUrls, ...uploadedUrls].slice(0, 5);
+        return { ...current, imageUrls, imageUrl: imageUrls[0] || "" };
+      });
+      setPendingFiles([]);
+      setMessage({
+        type: "success",
+        text: `${uploadedUrls.length} photo${uploadedUrls.length === 1 ? "" : "s"} uploaded. They will be saved with this service.`,
+      });
+    } catch (error) {
+      setPendingFiles([]);
+      setMessage({ type: "error", text: error.message || "Image upload failed" });
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
   // 1. Fetch businesses
   useEffect(() => {
+    if (searchParams.get("setup") === "service") {
+      toast.info(
+        "Your business is ready. Finish setting up your first service and its photos below.",
+        { duration: 6500 },
+      );
+    }
     getProfile()
       .then((res) => {
         const ownedBusinesses = res.data?.businesses || [];
@@ -113,6 +153,7 @@ function ServicesManagerContent() {
           bufferMinutes: 0,
           category: "General",
           imageUrl: "",
+          imageUrls: [],
         });
       }
     } catch (err) {
@@ -154,11 +195,11 @@ function ServicesManagerContent() {
             <span>Back to Dashboard</span>
           </Link>
           <h1 className="text-3xl font-extrabold text-white">
-            Services & Staff Capacity
+            Services & Booking Capacity
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Configure service timings (10m to 120m) and employee capacity for
-            simultaneous bookings.
+            Set service lengths from 5 minutes to 8 hours and choose how many
+            bookings this service can accept at the same time.
           </p>
         </div>
 
@@ -179,24 +220,6 @@ function ServicesManagerContent() {
         </div>
       </div>
 
-      {/* Message Banner */}
-      {message.text && (
-        <div
-          className={`p-4 rounded-xl border flex items-center gap-3 text-xs ${
-            message.type === "success"
-              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-              : "bg-rose-500/15 border-rose-500/30 text-rose-300"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          )}
-          <span>{message.text}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Create New Service Form (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
@@ -208,7 +231,7 @@ function ServicesManagerContent() {
                   Add New Service
                 </h2>
                 <p className="text-[11px] text-slate-400">
-                  Define duration & number of concurrent employees.
+                  Define service length and maximum simultaneous bookings.
                 </p>
               </div>
             </div>
@@ -295,7 +318,7 @@ function ServicesManagerContent() {
                 <div className="flex items-center justify-between">
                   <label className="text-indigo-300 font-semibold flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5" />
-                    Staff Capacity (Employees) *
+                    Maximum Concurrent Bookings *
                   </label>
                   <span className="text-sm font-extrabold text-white">
                     {form.capacity}
@@ -304,7 +327,7 @@ function ServicesManagerContent() {
                 <input
                   type="number"
                   min="1"
-                  max="20"
+                  max="100"
                   required
                   value={form.capacity}
                   onChange={(e) =>
@@ -315,9 +338,9 @@ function ServicesManagerContent() {
                 <p className="text-[10px] text-slate-400 flex items-start gap-1 leading-relaxed">
                   <Info className="w-3 h-3 text-indigo-400 flex-shrink-0 mt-0.5" />
                   <span>
-                    If this service has 2 employees, the system automatically
-                    accepts 2 simultaneous customer bookings for the exact same
-                    slot!
+                    Allows up to {form.capacity} bookings for this service at
+                    the same time. Staff assignments and opening hours can
+                    further limit availability.
                   </span>
                 </p>
               </div>
@@ -382,50 +405,43 @@ function ServicesManagerContent() {
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">
-                  Service image
+                <label className="mb-1 block text-sm font-semibold text-[var(--ink)]">
+                  Service photos <span className="text-[var(--danger-ink)]">* (1–5)</span>
                 </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  disabled={uploadingImage || !selectedBizId}
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    setUploadingImage(true);
-                    try {
-                      const imageUrl = await uploadBusinessImage(
-                        selectedBizId,
-                        file,
-                      );
-                      setForm((current) => ({ ...current, imageUrl }));
-                      setMessage({
-                        type: "success",
-                        text: "Image uploaded. It will be saved with this service.",
-                      });
-                    } catch (error) {
-                      setMessage({
-                        type: "error",
-                        text: error.message || "Image upload failed",
-                      });
-                    } finally {
-                      setUploadingImage(false);
-                    }
-                  }}
-                  className="w-full text-sm text-slate-300"
+                <ImagePicker
+                  files={pendingFiles}
+                  existingCount={form.imageUrls.length}
+                  maxFiles={5}
+                  disabled={!selectedBizId}
+                  uploading={uploadingImage}
+                  onFilesChange={handleServicePhotos}
+                  onError={(text) => setMessage(text ? { type: "error", text } : { type: "", text: "" })}
+                  hint={`${form.imageUrls.length} of 5 photos uploaded · JPG, PNG, WebP, or GIF · Up to 5 MB each`}
                 />
-                {uploadingImage && (
-                  <p className="mt-1 text-xs text-slate-400">Uploading…</p>
+                {form.imageUrls.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {form.imageUrls.map((url, index) => (
+                      <div key={url} className="relative aspect-square overflow-hidden rounded-lg border border-[var(--hairline)]">
+                        <img src={url} alt={`Service photo ${index + 1}`} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setForm((current) => {
+                            const imageUrls = current.imageUrls.filter((_, photoIndex) => photoIndex !== index);
+                            return { ...current, imageUrls, imageUrl: imageUrls[0] || "" };
+                          })}
+                          className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white"
+                          aria-label={`Remove photo ${index + 1}`}
+                        ><Trash2 size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                {form.imageUrl && (
-                  <p className="mt-1 truncate text-xs text-emerald-400">
-                    Image ready to save
-                  </p>
-                )}
+                <p className="mt-1 text-xs text-[var(--muted-ink)]">{form.imageUrls.length} of 5 photos added</p>
               </div>
 
               <button
                 type="submit"
+                disabled={uploadingImage || form.imageUrls.length < 1}
                 className="btn-primary text-xs py-3 rounded-xl font-semibold mt-2"
               >
                 Create Service
@@ -467,6 +483,13 @@ function ServicesManagerContent() {
                     key={svc._id}
                     className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.08] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                   >
+                    {(svc.imageUrls?.length || svc.imageUrl) && (
+                      <div className="flex max-w-full gap-2 overflow-x-auto">
+                        {(svc.imageUrls?.length ? svc.imageUrls : [svc.imageUrl]).map((url, index) => (
+                          <img key={url} src={url} alt={`${svc.name} photo ${index + 1}`} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-col gap-1.5 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-white">
@@ -489,8 +512,7 @@ function ServicesManagerContent() {
                         </span>
                         <span className="flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                           <Users className="w-3 h-3" />
-                          Capacity: {svc.capacity}{" "}
-                          {svc.capacity > 1 ? "Employees" : "Employee"}
+                          {svc.capacity} booking{svc.capacity === 1 ? "" : "s"} at once
                         </span>
                       </div>
                     </div>

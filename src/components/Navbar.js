@@ -3,6 +3,7 @@
 import { Menu, Store, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Brand from "./Brand";
 import { getProfile } from "../lib/api";
 import { authChangeEvent, clearAuthToken, getAuthToken } from "../lib/session";
 
@@ -36,18 +37,12 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[color-mix(in_oklab,var(--paper)_94%,transparent)]">
       <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-3"
-          aria-label="BookTheSlot home"
-        >
-          <span className="text-lg font-extrabold tracking-[-.04em]">
-            booktheslot
-          </span>
+        <div className="flex items-center gap-3">
+          <Brand />
           <span className="hidden border-l border-[var(--hairline)] pl-3 text-[11px] text-[var(--muted-ink)] md:inline">
             Appointments, on your time
           </span>
-        </Link>
+        </div>
         <nav
           className="main-desktop-nav hidden items-center gap-4 lg:gap-6 md:flex"
           aria-label="Main navigation"

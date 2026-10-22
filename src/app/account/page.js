@@ -44,13 +44,16 @@ function bookingDate(date, timezone) {
   }).format(value);
 }
 
-function bookingTime(time) {
+function bookingTime(time, format = "12h") {
   const [hour, minute] = time.split(":").map(Number);
+  if (format === "24h")
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
 function bookingGroup(booking, today) {
-  if (["CANCELLED", "EXPIRED"].includes(booking.status)) return "cancelled";
+  if (["CANCELLED", "REJECTED", "EXPIRED"].includes(booking.status))
+    return "cancelled";
   if (booking.status === "COMPLETED" || booking.date < today) return "past";
   return "upcoming";
 }
@@ -196,7 +199,7 @@ export default function CustomerAccountPage() {
   async function handleCancel(booking) {
     if (
       !window.confirm(
-        `Cancel your ${booking.serviceId?.name || "appointment"} on ${bookingDate(booking.date, booking.businessId?.timezone)} at ${bookingTime(booking.startTime)}?`,
+        `Cancel your ${booking.serviceId?.name || "appointment"} on ${bookingDate(booking.date, booking.businessId?.timezone)} at ${bookingTime(booking.startTime, booking.businessId?.settings?.timeFormat)}?`,
       )
     )
       return;
@@ -487,8 +490,11 @@ export default function CustomerAccountPage() {
                   const timezone = booking.businessId?.timezone;
                   const today = dateInTimezone(now, timezone);
                   const canCancel =
-                    ["CONFIRMED", "PENDING_PAYMENT"].includes(booking.status) &&
-                    booking.date >= today;
+                    [
+                      "CONFIRMED",
+                      "PENDING_PAYMENT",
+                      "PENDING_APPROVAL",
+                    ].includes(booking.status) && booking.date >= today;
                   return (
                     <li
                       key={booking._id}
@@ -497,7 +503,10 @@ export default function CustomerAccountPage() {
                       <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-ink)]">
                           {bookingDate(booking.date, timezone)} ·{" "}
-                          {bookingTime(booking.startTime)}
+                          {bookingTime(
+                            booking.startTime,
+                            booking.businessId?.settings?.timeFormat,
+                          )}
                         </p>
                         <h3 className="mt-1 truncate text-lg font-bold">
                           {booking.serviceId?.name || "Appointment"}
@@ -509,7 +518,7 @@ export default function CustomerAccountPage() {
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
                         <span
-                          className={`badge ${booking.status === "CONFIRMED" ? "badge-emerald" : booking.status === "CANCELLED" || booking.status === "EXPIRED" ? "badge-rose" : "badge-amber"}`}
+                          className={`badge ${booking.status === "CONFIRMED" ? "badge-emerald" : booking.status === "CANCELLED" || booking.status === "REJECTED" || booking.status === "EXPIRED" ? "badge-rose" : "badge-amber"}`}
                         >
                           {booking.status.replaceAll("_", " ")}
                         </span>

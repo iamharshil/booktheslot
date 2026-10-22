@@ -4,7 +4,13 @@ import { AlertCircle, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { createBusiness, getProfile } from "../../lib/api";
+import ImagePicker from "../../components/ImagePicker";
+import {
+  createBusiness,
+  createService,
+  getProfile,
+  uploadBusinessImage,
+} from "../../lib/api";
 import {
   authChangeEvent,
   clearAuthToken,
@@ -39,6 +45,7 @@ export default function RegisterBusinessPage() {
     price: "",
     capacity: 1,
   });
+  const [servicePhotos, setServicePhotos] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -87,21 +94,35 @@ export default function RegisterBusinessPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (servicePhotos.length < 1 || servicePhotos.length > 5) {
+      setError("Add between one and five photos for your first service.");
+      return;
+    }
     setSubmitting(true);
     setError("");
 
     try {
-      const res = await createBusiness({
-        ...form,
-        initialService: {
-          ...initialService,
-          durationMinutes: Number(initialService.durationMinutes),
-          price: Number(initialService.price),
-          capacity: Number(initialService.capacity),
-        },
-      });
+      const res = await createBusiness(form);
       if (res.success) {
         notifyAuthChange();
+        const businessId = res.data?._id;
+        try {
+          const imageUrls = [];
+          for (const file of servicePhotos) {
+            imageUrls.push(await uploadBusinessImage(businessId, file));
+          }
+          await createService(businessId, {
+            ...initialService,
+            durationMinutes: Number(initialService.durationMinutes),
+            price: Number(initialService.price),
+            capacity: Number(initialService.capacity),
+            imageUrls,
+            imageUrl: imageUrls[0],
+          });
+        } catch (serviceError) {
+          router.push(`/dashboard/services?businessId=${businessId}&setup=service`);
+          return;
+        }
         router.push("/dashboard?welcome=1");
       }
     } catch (err) {
@@ -229,7 +250,7 @@ export default function RegisterBusinessPage() {
                 placeholder="e.g. Studio Kesar"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-xl border border-[var(--hairline)] bg-[var(--raised)] px-3.5 py-2.5 text-[var(--ink)] placeholder:text-[var(--muted-ink)] focus:outline-none focus:border-[var(--vermilion)]"
               />
             </div>
 
@@ -240,7 +261,7 @@ export default function RegisterBusinessPage() {
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="w-full bg-[var(--raised)] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-xl border border-[var(--hairline)] bg-[var(--raised)] px-3.5 py-2.5 text-[var(--ink)] focus:outline-none focus:border-[var(--vermilion)]"
               >
                 {categories.map((c) => (
                   <option key={c} value={c}>
@@ -339,7 +360,7 @@ export default function RegisterBusinessPage() {
               Give customers something to book.
             </h2>
             <p className="mt-1 text-sm text-[var(--muted-ink)]">
-              You can add more services or change these details later.
+              Add at least one photo so customers can see what you offer. You can add more services later.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1 font-medium sm:col-span-2">
@@ -358,6 +379,16 @@ export default function RegisterBusinessPage() {
                   className="w-full rounded-md border px-3.5 py-2.5"
                 />
               </label>
+              <div className="grid gap-1.5 font-medium sm:col-span-2">
+                <span>Service photos *</span>
+                <ImagePicker
+                  files={servicePhotos}
+                  maxFiles={5}
+                  onFilesChange={setServicePhotos}
+                  onError={setError}
+                  hint="Choose 1–5 photos · JPG, PNG, WebP, or GIF · Up to 5 MB each"
+                />
+              </div>
               <label className="grid gap-1 font-medium">
                 Price (₹) *
                 <input
@@ -377,8 +408,13 @@ export default function RegisterBusinessPage() {
                 />
               </label>
               <label className="grid gap-1 font-medium">
-                Duration *
-                <select
+                Duration (minutes) *
+                <input
+                  type="number"
+                  min="5"
+                  max="480"
+                  step="1"
+                  required
                   value={initialService.durationMinutes}
                   onChange={(event) =>
                     setInitialService({
@@ -387,13 +423,8 @@ export default function RegisterBusinessPage() {
                     })
                   }
                   className="w-full rounded-md border px-3.5 py-2.5"
-                >
-                  {[15, 30, 45, 60, 90, 120].map((minutes) => (
-                    <option key={minutes} value={minutes}>
-                      {minutes} minutes
-                    </option>
-                  ))}
-                </select>
+                />
+                <span className="text-xs font-normal text-[var(--muted-ink)]">Choose 5 minutes to 8 hours.</span>
               </label>
               <label className="grid gap-1 font-medium">
                 Simultaneous appointments
