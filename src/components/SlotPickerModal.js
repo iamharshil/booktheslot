@@ -1,19 +1,19 @@
 "use client";
 
-import {
-  AlertCircle,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  CreditCard,
-  Loader2,
-  ShieldCheck,
-  Users,
-  X,
-} from "lucide-react";
+import { AlertCircle, Clock, CreditCard, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { getAvailableSlots, holdSlotAndOrder, verifyPayment } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import {
+  getAvailableSlots,
+  getProfile,
+  holdSlotAndOrder,
+  verifyPayment,
+} from "../lib/api";
+import { buildDateWindow } from "../lib/dates";
+import { getAuthToken } from "../lib/session";
+import DateStrip from "./DateStrip";
+import HoldTimer from "./HoldTimer";
+import SlotGrid from "./SlotGrid";
 
 export default function SlotPickerModal({
   isOpen,
@@ -22,10 +22,14 @@ export default function SlotPickerModal({
   service,
 }) {
   const router = useRouter();
+  const dialogRef = useRef(null);
+  const previousFocusRef = useRef(null);
 
   // Selected date state (defaults to today or tomorrow on client)
   const [selectedDate, setSelectedDate] = useState("");
   const [datesList, setDatesList] = useState([]);
+  const [datePage, setDatePage] = useState(0);
+  const [densityByDate, setDensityByDate] = useState({});
   const [slotData, setSlotData] = useState(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -43,23 +47,111 @@ export default function SlotPickerModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [isConflict, setIsConflict] = useState(false);
   const [_paymentSuccess, setPaymentSuccess] = useState(null);
+  const [pendingCheckout, setPendingCheckout] = useState(null);
+  const [holdDeadline, setHoldDeadline] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(null);
 
-  // Generate next 14 dates on client mount
   useEffect(() => {
-    const curr = new Date();
-    const list = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date(curr);
-      d.setDate(curr.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
-      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-      const monthName = d.toLocaleDateString("en-US", { month: "short" });
-      const dayNum = d.getDate();
-      list.push({ dateStr, dayName, monthName, dayNum, isToday: i === 0 });
-    }
+    if (!isOpen || !getAuthToken()) return undefined;
+    let active = true;
+    getProfile()
+      .then((res) => {
+        if (!active) return;
+        const profile = res.data || {};
+        setCustomer((current) => ({
+          ...current,
+          name: current.name || profile.name || "",
+          email: current.email || profile.email || "",
+          phone: current.phone || profile.phone || "",
+        }));
+      })
+      .catch(() => {
+        // The API will require a valid account session before it creates a hold.
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
+  // Use the store's bookable window, in the browser's local calendar (not UTC)
+  useEffect(() => {
+    const configuredDays = Number(business?.settings?.maxAdvanceDays ?? 14);
+    const maxDays = Math.max(
+      0,
+      Math.min(Number.isFinite(configuredDays) ? configuredDays : 14, 365),
+    );
+    const list = buildDateWindow(
+      maxDays,
+      new Date(),
+      business?.timezone || "Asia/Kolkata",
+    );
     setDatesList(list);
-    setSelectedDate(list[0].dateStr);
-  }, []);
+    setDatePage(0);
+    setSelectedDate((current) =>
+      list.some((d) => d.dateStr === current) ? current : list[0].dateStr,
+    );
+  }, [business?.settings?.maxAdvanceDays, business?.timezone]);
+
+  useEffect(() => {
+    if (!isOpen || !business?._id || !service?._id || !datesList.length)
+      return undefined;
+    let active = true;
+    const visibleDates = datesList.slice(datePage, datePage + 7);
+    Promise.all(
+      visibleDates.map(async ({ dateStr }) => {
+        try {
+          const result = await getAvailableSlots({
+            businessId: business._id,
+            serviceId: service._id,
+            date: dateStr,
+          });
+          return [dateStr, result.data?.totalSlotsAvailable ?? 0];
+        } catch {
+          return [dateStr, undefined];
+        }
+      }),
+    ).then((entries) => {
+      if (active)
+        setDensityByDate((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            entries.filter(([, count]) => count !== undefined),
+          ),
+        }));
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOpen, business?._id, service?._id, datesList, datePage]);
+
+  useEffect(() => {
+    if (!holdDeadline || !isOpen) return undefined;
+    const update = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((holdDeadline - Date.now()) / 1000),
+      );
+      setRemainingSeconds(remaining);
+      if (remaining === 0) {
+        setPendingCheckout(null);
+        setHoldDeadline(null);
+        setRemainingSeconds(null);
+        setErrorMessage(
+          "Your hold ended. Choose a time again to start a new booking.",
+        );
+      }
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [holdDeadline, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    previousFocusRef.current = document.activeElement;
+    dialogRef.current?.querySelector("button, input, textarea")?.focus();
+    return () => previousFocusRef.current?.focus?.();
+  }, [isOpen]);
 
   // Load available slots whenever date or service changes
   useEffect(() => {
@@ -79,6 +171,10 @@ export default function SlotPickerModal({
       .then((res) => {
         if (isMounted && res.success) {
           setSlotData(res.data);
+          setDensityByDate((current) => ({
+            ...current,
+            [selectedDate]: res.data?.totalSlotsAvailable ?? 0,
+          }));
         }
       })
       .catch((err) => {
@@ -102,6 +198,11 @@ export default function SlotPickerModal({
   // Handle Booking & Razorpay Payment
   const handleProceedToPayment = async (e) => {
     e.preventDefault();
+    if (!getAuthToken()) {
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
     if (!selectedSlot) {
       setErrorMessage("Please select a time slot.");
       return;
@@ -117,19 +218,46 @@ export default function SlotPickerModal({
 
     try {
       // 1. Atomic Hold Slot & Order Creation
-      const holdRes = await holdSlotAndOrder({
-        businessId: business._id,
-        serviceId: service._id,
-        date: selectedDate,
-        startTime: selectedSlot.startTime,
-        customer,
-      });
+      let checkout = pendingCheckout;
+      const holdMatchesSelection =
+        pendingCheckout?.booking?.date === selectedDate &&
+        pendingCheckout?.booking?.startTime === selectedSlot.startTime &&
+        String(pendingCheckout?.booking?.businessId) === String(business._id) &&
+        String(pendingCheckout?.booking?.serviceId) === String(service._id);
+      if (
+        !checkout ||
+        !holdMatchesSelection ||
+        !holdDeadline ||
+        holdDeadline <= Date.now()
+      ) {
+        const holdRes = await holdSlotAndOrder({
+          businessId: business._id,
+          serviceId: service._id,
+          date: selectedDate,
+          startTime: selectedSlot.startTime,
+          customer,
+        });
+        const expiresAt = new Date(
+          holdRes.data.holdExpiresAt || Date.now() + 600000,
+        ).getTime();
+        checkout = {
+          ...holdRes.data,
+          expiresAt,
+          selectedDate,
+          startTime: selectedSlot.startTime,
+        };
+        setPendingCheckout(checkout);
+        setHoldDeadline(expiresAt);
+      }
+      const { booking, razorpayOrder, razorpayKeyId, isMockMode } = checkout;
 
-      const { booking, razorpayOrder, razorpayKeyId, isMockMode } =
-        holdRes.data;
+      if (checkout.requiresPayment === false) {
+        router.push(`/booking/${booking._id}`);
+        return;
+      }
 
       // 2. Open Razorpay Checkout or handle Mock Development Mode
-      if (typeof window !== "undefined" && window.Razorpay && !isMockMode) {
+      if (!isMockMode && typeof window !== "undefined" && window.Razorpay) {
         const options = {
           key: razorpayKeyId,
           amount: razorpayOrder.amount,
@@ -143,20 +271,46 @@ export default function SlotPickerModal({
             contact: customer.phone,
           },
           theme: {
-            color: "#6366f1",
+            color: "#ff5b2e",
+          },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay by UPI",
+                  instruments: [{ method: "upi" }],
+                },
+                other: {
+                  name: "Other payment methods",
+                  instruments: [
+                    { method: "card" },
+                    { method: "netbanking" },
+                    { method: "wallet" },
+                  ],
+                },
+              },
+              sequence: ["block.upi", "block.other"],
+              preferences: { show_default_blocks: false },
+            },
           },
           handler: async (response) => {
-            // 3. Verify Payment Signature
-            const verifyRes = await verifyPayment({
-              bookingId: booking._id,
-              orderId: response.razorpay_order_id,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-            });
-
-            if (verifyRes.success) {
-              setPaymentSuccess(verifyRes.data);
-              router.push(`/booking/${booking._id}`);
+            try {
+              const verifyRes = await verifyPayment({
+                bookingId: booking._id,
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+              });
+              if (verifyRes.success) {
+                setPaymentSuccess(verifyRes.data);
+                router.push(`/booking/${booking._id}`);
+              }
+            } catch (err) {
+              setIsSubmitting(false);
+              setErrorMessage(
+                err.message ||
+                  "Payment succeeded but confirmation failed. Contact the business before retrying.",
+              );
             }
           },
           modal: {
@@ -168,23 +322,37 @@ export default function SlotPickerModal({
         };
 
         const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", (response) => {
+          setIsSubmitting(false);
+          setErrorMessage(
+            response.error?.description || "Payment failed. You can try again.",
+          );
+        });
         rzp.open();
-      } else {
+      } else if (isMockMode) {
         // Development Sandbox Simulation: Automatically simulate seamless payment
         // Simulate short gateway confirmation delay
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
+        const mockPaymentId =
+          checkout.mockPaymentId || `pay_dev_${booking._id}`;
+        checkout = { ...checkout, mockPaymentId };
+        setPendingCheckout(checkout);
         const verifyRes = await verifyPayment({
           bookingId: booking._id,
           orderId: razorpayOrder.id,
-          paymentId: `pay_dev_${Date.now()}`,
-          signature: "dev_mock_signature",
+          paymentId: mockPaymentId,
+          signature: "mock_signature",
         });
 
         if (verifyRes.success) {
           setPaymentSuccess(verifyRes.data);
           router.push(`/booking/${booking._id}`);
         }
+      } else {
+        throw new Error(
+          "Payment checkout did not load. Try again when you have a stable connection.",
+        );
       }
     } catch (err) {
       setIsSubmitting(false);
@@ -194,7 +362,6 @@ export default function SlotPickerModal({
           err.message ||
             "This slot was just taken by another user. Please choose another time.",
         );
-        // Refresh slot list to show updated availability
         getAvailableSlots({
           businessId: business._id,
           serviceId: service._id,
@@ -211,17 +378,42 @@ export default function SlotPickerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-[#0c1220] border border-white/[0.14] rounded-2xl shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+    <div className="slot-picker-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/45 p-0 sm:items-center sm:p-5">
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slot-picker-title"
+        className="slot-picker-dialog relative my-0 max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-2xl border border-[var(--hairline)] bg-[var(--raised)] shadow-[var(--floating-shadow)] sm:rounded-2xl"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !isSubmitting) onClose();
+          if (event.key !== "Tab") return;
+          const focusable = [
+            ...event.currentTarget.querySelectorAll(
+              "button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]",
+            ),
+          ];
+          if (!focusable.length) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
         {/* Header */}
         <div className="px-6 py-4.5 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center border border-indigo-500/25 shadow-sm">
-              <Calendar className="w-5 h-5" />
-            </div>
             <div>
-              <h2 className="text-lg font-extrabold text-white tracking-tight">
-                Select Date & Time Slot
+              <h2
+                id="slot-picker-title"
+                className="text-lg font-bold tracking-tight"
+              >
+                Choose a time
               </h2>
               <p className="text-xs text-slate-400">
                 {business.name} • {service.name}
@@ -231,26 +423,26 @@ export default function SlotPickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors"
+            disabled={isSubmitting}
+            aria-label="Close time picker"
+            className="h-11 w-11 rounded-md flex items-center justify-center hover:bg-[var(--sunken)] disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Service Snapshot Card */}
-        <div className="px-6 py-3.5 bg-indigo-950/20 border-b border-indigo-500/15 flex flex-wrap items-center justify-between gap-4 text-xs">
+        <div className="px-5 py-4 border-b border-[var(--hairline)] flex flex-wrap items-center justify-between gap-4 text-sm">
           <div className="flex flex-wrap items-center gap-4">
-            <span className="flex items-center gap-1.5 text-indigo-300 font-medium bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
-              <Clock className="w-3.5 h-3.5" />
-              <span>Duration: {service.durationMinutes} mins</span>
+            <span className="eyebrow">
+              Duration · {service.durationMinutes} min
             </span>
-            <span className="flex items-center gap-1.5 text-emerald-300 font-medium bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-              <Users className="w-3.5 h-3.5" />
-              <span>Capacity: {service.capacity} Staff on Duty</span>
+            <span className="eyebrow">
+              Up to {service.capacity} bookings at once
             </span>
           </div>
-          <div className="text-base font-extrabold text-white">
-            ₹{service.price}{" "}
+          <div className="price text-xl font-bold">
+            ₹{new Intl.NumberFormat("en-IN").format(service.price)}{" "}
             <span className="text-[11px] font-normal text-slate-400">
               all-inclusive
             </span>
@@ -259,7 +451,7 @@ export default function SlotPickerModal({
 
         <form
           onSubmit={handleProceedToPayment}
-          className="p-6 flex flex-col gap-6"
+          className="p-4 sm:p-6 flex flex-col gap-6"
         >
           {/* Step 1: Date Selector Chips */}
           <div>
@@ -268,36 +460,18 @@ export default function SlotPickerModal({
                 1. Pick Date
               </label>
               <span className="text-[11px] text-indigo-400 font-medium">
-                14-day rolling schedule
+                {Math.max(0, datesList.length - 1)} days ahead
               </span>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-              {datesList.map((d) => {
-                const isSelected = selectedDate === d.dateStr;
-                return (
-                  <button
-                    type="button"
-                    key={d.dateStr}
-                    onClick={() => setSelectedDate(d.dateStr)}
-                    className={`flex flex-col items-center justify-center min-w-[72px] py-2.5 px-3 rounded-xl border text-xs transition-all ${
-                      isSelected
-                        ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/30 scale-102 font-bold"
-                        : "bg-white/[0.03] border-white/[0.08] text-slate-300 hover:bg-white/[0.07] hover:border-white/[0.15]"
-                    }`}
-                  >
-                    <span className="text-[10px] uppercase tracking-wider opacity-80">
-                      {d.isToday ? "Today" : d.dayName}
-                    </span>
-                    <span className="text-base font-extrabold my-0.5">
-                      {d.dayNum}
-                    </span>
-                    <span className="text-[10px] opacity-70">
-                      {d.monthName}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <DateStrip
+              dates={datesList}
+              selectedDate={selectedDate}
+              onSelect={setSelectedDate}
+              availability={densityByDate}
+              startIndex={datePage}
+              onPageChange={setDatePage}
+              disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+            />
           </div>
 
           {/* Step 2: Time Slots Grid with Shifts & Afternoon Break Highlighting */}
@@ -308,8 +482,7 @@ export default function SlotPickerModal({
               </label>
               {slotData && !slotData.isClosed && (
                 <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {slotData.totalSlotsAvailable} slots open for{" "}
+                  {slotData.totalSlotsAvailable} available times ·{" "}
                   {service.durationMinutes}m session
                 </span>
               )}
@@ -319,7 +492,7 @@ export default function SlotPickerModal({
               <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-400 bg-white/[0.01] rounded-2xl border border-white/[0.05]">
                 <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                 <span className="text-xs font-medium">
-                  Calculating real-time shift openings & staff capacity...
+                  Checking available times...
                 </span>
               </div>
             ) : slotData?.isClosed ? (
@@ -335,7 +508,8 @@ export default function SlotPickerModal({
               </div>
             ) : slotData?.slots?.length === 0 ? (
               <div className="p-5 bg-slate-800/40 border border-white/[0.08] rounded-xl text-center text-xs text-slate-400">
-                All slots are booked for this day. Please select another date.
+                No bookable times are available for this day. Please select
+                another date.
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -361,56 +535,24 @@ export default function SlotPickerModal({
                 )}
 
                 {/* Slots Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                  {slotData?.slots?.map((slot) => {
-                    const isSelected =
-                      selectedSlot?.startTime === slot.startTime;
-                    const isMultiEmployee = slot.totalCapacity > 1;
-
-                    return (
-                      <button
-                        type="button"
-                        key={slot.startTime}
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
-                          isSelected
-                            ? "bg-indigo-600/25 border-indigo-400 text-white shadow-lg shadow-indigo-600/25 ring-1 ring-indigo-400 scale-[1.02]"
-                            : "bg-white/[0.025] border-white/[0.08] text-slate-300 hover:bg-white/[0.06] hover:border-white/[0.18]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span className="font-bold text-sm text-white font-mono">
-                            {slot.startTimeDisplay}
-                          </span>
-                          {isSelected && (
-                            <CheckCircle2 className="w-4 h-4 text-indigo-400" />
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1.5">
-                          <span>ends {slot.endTimeDisplay}</span>
-                          {isMultiEmployee && (
-                            <span
-                              className={`font-semibold flex items-center gap-1 ${
-                                slot.remainingCapacity === 1
-                                  ? "text-amber-400"
-                                  : "text-emerald-400"
-                              }`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                              {slot.remainingCapacity} spots
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <SlotGrid
+                  slots={slotData?.slots}
+                  selectedSlot={selectedSlot}
+                  onSelect={(slot) => {
+                    if (remainingSeconds === 0) {
+                      setPendingCheckout(null);
+                      setHoldDeadline(null);
+                      setRemainingSeconds(null);
+                    }
+                    setSelectedSlot(slot);
+                  }}
+                  disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+                />
 
                 {/* Selected Slot Confirmation Pill */}
                 {selectedSlot && (
-                  <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/25 rounded-xl flex items-center justify-between text-xs text-indigo-300 animate-in fade-in">
+                  <div className="p-2.5 bg-[var(--sunken)] border border-[var(--hairline)] rounded-md flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-indigo-400" />
                       <span>
                         Selected:{" "}
                         <strong>
@@ -419,14 +561,24 @@ export default function SlotPickerModal({
                         </strong>
                       </span>
                     </div>
-                    <span className="text-[11px] text-indigo-400 font-medium">
-                      Atomic Lock Ready
-                    </span>
+                    <span className="eyebrow">Selected</span>
                   </div>
                 )}
               </div>
             )}
           </div>
+
+          {pendingCheckout &&
+            remainingSeconds !== null &&
+            remainingSeconds > 0 && (
+              <HoldTimer
+                remainingSeconds={remainingSeconds}
+                businessName={business.name}
+                serviceName={service.name}
+                date={selectedDate}
+                time={selectedSlot?.startTimeDisplay || selectedSlot?.startTime}
+              />
+            )}
 
           {/* Concurrency Conflict or Error Notification */}
           {errorMessage && (
@@ -456,6 +608,9 @@ export default function SlotPickerModal({
               <div>
                 <input
                   type="text"
+                  autoComplete="name"
+                  disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+                  aria-label="Your name"
                   required
                   placeholder="Full Name *"
                   value={customer.name}
@@ -468,6 +623,9 @@ export default function SlotPickerModal({
               <div>
                 <input
                   type="email"
+                  autoComplete="email"
+                  disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+                  aria-label="Email address"
                   required
                   placeholder="Email Address *"
                   value={customer.email}
@@ -480,11 +638,28 @@ export default function SlotPickerModal({
               <div className="sm:col-span-2">
                 <input
                   type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+                  aria-label="Phone number with country code"
                   required
                   placeholder="Phone Number (e.g. +91 9876543210) *"
                   value={customer.phone}
                   onChange={(e) =>
                     setCustomer({ ...customer, phone: e.target.value })
+                  }
+                  className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <textarea
+                  rows="2"
+                  disabled={Boolean(pendingCheckout && remainingSeconds > 0)}
+                  aria-label="Notes for the business"
+                  placeholder="Notes for the store (optional)"
+                  value={customer.notes}
+                  onChange={(e) =>
+                    setCustomer({ ...customer, notes: e.target.value })
                   }
                   className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
@@ -496,28 +671,38 @@ export default function SlotPickerModal({
           <div className="pt-2 flex flex-col gap-2">
             <button
               type="submit"
-              disabled={isSubmitting || !selectedSlot || slotData?.isClosed}
+              disabled={
+                isSubmitting ||
+                !selectedSlot ||
+                slotData?.isClosed ||
+                remainingSeconds === 0
+              }
               className="btn-primary w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-600/30"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Acquiring Atomic Lock & Opening Razorpay...</span>
+                  <span>Opening payment...</span>
                 </>
               ) : (
                 <>
                   <CreditCard className="w-4 h-4" />
-                  <span>Confirm & Pay ₹{service.price} via Razorpay</span>
+                  <span>
+                    Continue to payment · ₹
+                    {new Intl.NumberFormat("en-IN").format(service.price)}
+                  </span>
                 </>
               )}
             </button>
             <div className="flex items-center justify-center gap-2 text-[11px] text-slate-500">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>10-minute hold lock guarantees zero double booking</span>
+              <span>
+                The selected time is held for 10 minutes while you complete
+                payment.
+              </span>
             </div>
           </div>
         </form>
-      </div>
+      </section>
     </div>
   );
 }

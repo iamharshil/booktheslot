@@ -1,525 +1,251 @@
 "use client";
 
-import {
-  AlertCircle,
-  ArrowRight,
-  CalendarCheck,
-  CheckCircle2,
-  Clock,
-  CreditCard,
-  RotateCcw,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  Store,
-  Users,
-  Zap,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import BusinessCard from "../components/BusinessCard";
 import { getBusinesses } from "../lib/api";
 
-function HeroBookingSimulator() {
-  const [selectedSlot, setSelectedSlot] = useState("09:30 AM");
-  const [simStep, setSimStep] = useState(1); // 1 = 1st booking, 2 = 2nd booking concurrent, 3 = 3rd rejected
-  const [alertMsg, setAlertMsg] = useState({
-    type: "success",
-    text: "Stylist 1 Assigned! Atomic lock acquired for 10:00 mins.",
-  });
-
-  const slots = [
-    { time: "09:30 AM", status: "open", capacity: 2, label: "2 Spots Open" },
-    { time: "10:15 AM", status: "open", capacity: 2, label: "2 Spots Open" },
-    { time: "11:00 AM", status: "partial", capacity: 1, label: "1 Spot Left" },
-    { time: "01:00 PM", status: "break", capacity: 0, label: "Lunch Shutdown" },
-    { time: "02:30 PM", status: "open", capacity: 2, label: "2 Spots Open" },
-    { time: "04:00 PM", status: "open", capacity: 2, label: "2 Spots Open" },
-  ];
-
-  const handleSlotClick = (slot) => {
-    if (slot.status === "break") {
-      setAlertMsg({
-        type: "error",
-        text: "⛔ Blocked: Slot collides with Afternoon Break (1:00 - 2:30 PM). Zero break violations.",
-      });
-      return;
-    }
-    setSelectedSlot(slot.time);
-    setSimStep(1);
-    setAlertMsg({
-      type: "success",
-      text: `Customer #1 reserved ${slot.time}! Stylist 1 assigned with atomic hold lock.`,
-    });
-  };
-
-  const handleSimulateSecondUser = () => {
-    if (simStep === 1) {
-      setSimStep(2);
-      setAlertMsg({
-        type: "info",
-        text: "⚡ Customer #2 booked same slot! Stylist 2 assigned. Multi-employee concurrency handled seamlessly.",
-      });
-    } else if (simStep === 2) {
-      setSimStep(3);
-      setAlertMsg({
-        type: "warning",
-        text: "🛡️ Capacity Reached (2/2)! Customer #3 attempt atomically blocked. Zero double-booking guarantee.",
-      });
-    }
-  };
-
-  const handleReset = () => {
-    setSelectedSlot("09:30 AM");
-    setSimStep(1);
-    setAlertMsg({
-      type: "success",
-      text: "Stylist 1 Assigned! Atomic lock acquired for 10:00 mins.",
-    });
-  };
-
-  return (
-    <div className="relative rounded-2xl overflow-hidden border border-white/[0.14] bg-[#0c1220]/95 backdrop-blur-2xl shadow-2xl shadow-indigo-500/20 flex flex-col">
-      {/* Top Window Bar */}
-      <div className="px-4 py-3 bg-white/[0.03] border-b border-white/[0.08] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-          <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-          <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-          <span className="text-xs font-mono text-slate-400 ml-2">
-            Atomic Shift & Concurrency Engine 2.0
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Interactive Demo</span>
-        </div>
-      </div>
-
-      {/* Simulator Content */}
-      <div className="p-5 flex flex-col gap-4 text-xs">
-        {/* Store & Service Profile */}
-        <div className="flex items-center justify-between bg-white/[0.02] p-3 rounded-xl border border-white/[0.06]">
-          <div>
-            <div className="font-bold text-white text-sm">
-              Luxe Studio & Spa
-            </div>
-            <div className="text-slate-400 text-[11px] mt-0.5">
-              Service: Hair Styling & Detox (45 min) • ₹799
-            </div>
-          </div>
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
-            <Users className="w-3.5 h-3.5" />
-            <span>Capacity: 2 Staff</span>
-          </div>
-        </div>
-
-        {/* Operating Shifts Visualizer */}
-        <div className="p-2.5 bg-black/40 rounded-xl border border-white/[0.06] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-[11px] text-slate-400">
-            <span className="font-medium text-slate-300 flex items-center gap-1">
-              <Clock className="w-3 h-3 text-indigo-400" />
-              Daily Schedule:
-            </span>
-            <span className="text-[10px] text-slate-400">
-              2 Shifts Configured
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
-            <span className="bg-indigo-500/15 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 font-mono">
-              Morning 09:00 – 13:00
-            </span>
-            <span className="bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 font-mono flex items-center gap-1">
-              ☕ Lunch 13:00 – 14:30
-            </span>
-            <span className="bg-indigo-500/15 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30 font-mono">
-              Evening 14:30 – 20:00
-            </span>
-          </div>
-        </div>
-
-        {/* Interactive Slots Grid */}
-        <div>
-          <div className="flex items-center justify-between text-slate-400 text-[11px] mb-2 font-medium">
-            <span>Click any slot to simulate real-time lock:</span>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {slots.map((s) => {
-              const isSelected = selectedSlot === s.time;
-              const isBreak = s.status === "break";
-              return (
-                <button
-                  type="button"
-                  key={s.time}
-                  onClick={() => handleSlotClick(s)}
-                  className={`p-2 rounded-xl text-left border transition-all ${
-                    isBreak
-                      ? "bg-amber-500/10 border-amber-500/20 text-amber-300/80 cursor-not-allowed opacity-80"
-                      : isSelected
-                        ? "bg-indigo-600/30 border-indigo-400 text-white shadow-lg shadow-indigo-600/30 scale-[1.02]"
-                        : "bg-white/[0.03] border-white/[0.08] text-slate-300 hover:bg-white/[0.06] hover:border-white/[0.15]"
-                  }`}
-                >
-                  <div className="font-bold text-[12px] flex items-center justify-between">
-                    <span>{s.time}</span>
-                    {isBreak ? (
-                      <span className="text-[10px]">☕</span>
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    )}
-                  </div>
-                  <div className="text-[9px] text-slate-400 mt-0.5 truncate">
-                    {s.label}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Live Simulation Feedback Banner */}
-        <div
-          className={`p-3 rounded-xl border flex items-start gap-2.5 transition-all ${
-            alertMsg.type === "error"
-              ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
-              : alertMsg.type === "warning"
-                ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                : alertMsg.type === "info"
-                  ? "bg-purple-500/15 border-purple-500/30 text-purple-200"
-                  : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-          }`}
-        >
-          {alertMsg.type === "error" ? (
-            <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          ) : alertMsg.type === "warning" ? (
-            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          ) : (
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          )}
-          <div className="flex-1">
-            <div className="text-[11px] font-medium leading-relaxed">
-              {alertMsg.text}
-            </div>
-            {/* Visual Stylist Assignment Badges */}
-            <div className="flex items-center gap-2 mt-2">
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                  simStep >= 1
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                    : "bg-white/[0.05] text-slate-500"
-                }`}
-              >
-                Stylist #1: {simStep >= 1 ? "Booked" : "Idle"}
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                  simStep >= 2
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                    : "bg-white/[0.05] text-slate-500"
-                }`}
-              >
-                Stylist #2: {simStep >= 2 ? "Booked" : "Idle"}
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                  simStep >= 3
-                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                    : "bg-white/[0.05] text-slate-500"
-                }`}
-              >
-                User #3: {simStep >= 3 ? "Blocked" : "N/A"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Button to test concurrent booking */}
-        <button
-          type="button"
-          onClick={handleSimulateSecondUser}
-          className="w-full py-2.5 px-4 bg-indigo-600/30 hover:bg-indigo-600/50 active:scale-[0.99] border border-indigo-500/40 rounded-xl text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
-        >
-          <Zap className="w-3.5 h-3.5 text-indigo-400" />
-          <span>
-            {simStep === 1
-              ? "Simulate 2nd Customer Booking Same Slot"
-              : simStep === 2
-                ? "Simulate 3rd Overbooking Attempt"
-                : "Stress Test Passed (All Guardrails Active)"}
-          </span>
-        </button>
-      </div>
-
-      {/* Floating Glass Pill */}
-      <div className="p-3 bg-white/[0.02] border-t border-white/[0.08] flex items-center justify-between text-[11px] text-slate-400 px-4">
-        <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-          <ShieldCheck className="w-4 h-4" />
-          <span>Atomic Conditional Hold Active</span>
-        </div>
-        <span>MongoDB Concurrency Safe</span>
-      </div>
-    </div>
-  );
-}
+const categories = [
+  "All places",
+  "Salon & Spa",
+  "Healthcare & Dental",
+  "Fitness & Wellness",
+  "Auto Services",
+  "Professional Services",
+  "Other",
+];
 
 export default function HomePage() {
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [error, setError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All places");
   const [searchQuery, setSearchQuery] = useState("");
-
-  const categories = [
-    { label: "All", icon: "✨" },
-    { label: "Salon & Spa", icon: "💇‍♀️" },
-    { label: "Healthcare & Dental", icon: "🩺" },
-    { label: "Auto Services", icon: "🚗" },
-    { label: "Fitness & Wellness", icon: "🧘‍♀️" },
-  ];
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
+    const timer = setTimeout(() => setQuery(searchQuery.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
     const params = {};
-    if (selectedCategory !== "All") {
-      params.category = selectedCategory;
-    }
-    if (searchQuery.trim()) {
-      params.search = searchQuery.trim();
-    }
+    if (selectedCategory !== "All places") params.category = selectedCategory;
+    if (query) params.search = query;
 
     getBusinesses(params)
       .then((res) => {
-        if (isMounted && res.success) {
-          setBusinesses(res.data);
-        }
+        if (active) setBusinesses(res.data || []);
       })
       .catch((err) => {
-        console.error("Failed to load businesses:", err);
+        if (active) setError(err.message || "Businesses could not be loaded.");
       })
       .finally(() => {
-        if (isMounted) setLoading(false);
+        if (active) setLoading(false);
       });
-
     return () => {
-      isMounted = false;
+      active = false;
     };
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, query]);
 
   return (
-    <div className="flex flex-col gap-20 pb-20">
-      {/* Hero Section */}
-      <section className="relative pt-8 sm:pt-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-          {/* Hero Copy */}
-          <div className="lg:col-span-6 flex flex-col gap-6 text-left">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold w-fit shadow-sm backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Next-Gen Multi-Shift Scheduling Platform</span>
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-              Every Business. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400">
-                Any Shift, Any Break.
-              </span>{" "}
-              <span className="inline-block">Zero Conflicts.</span>
-            </h1>
-
-            <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed">
-              From afternoon lunch shutdowns to multi-employee concurrent
-              bookings. Customize shifts, manage services from 10 minutes to 2
-              hours, and accept real-time Razorpay payments.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-4 pt-1">
-              <a
-                href="#explore-stores"
-                className="btn-primary text-base px-6 py-3.5 rounded-xl shadow-lg shadow-indigo-500/30"
-              >
-                <span>Explore Live Stores</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
-
-              <Link
-                href="/register-business"
-                className="btn-secondary text-base px-6 py-3.5 rounded-xl"
-              >
-                <Store className="w-4 h-4 text-slate-400" />
-                <span>Create Your Store</span>
-              </Link>
-            </div>
-
-            {/* Micro Stats Pill */}
-            <div className="pt-6 grid grid-cols-3 gap-4 border-t border-white/[0.08] max-w-md">
-              <div>
-                <div className="text-2xl font-extrabold text-white">100%</div>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  Race-Condition Safe
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-indigo-400">
-                  Flex
-                </div>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  Afternoon Breaks
-                </div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-emerald-400">
-                  Instant
-                </div>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  Razorpay Checkout
-                </div>
-              </div>
+    <div className="pb-20">
+      <section className="mx-auto grid max-w-7xl items-end gap-10 px-4 pb-14 pt-12 sm:px-8 sm:pb-20 sm:pt-20 lg:grid-cols-[1.2fr_.8fr]">
+        <div>
+          <p className="eyebrow">Appointments across India</p>
+          <h1 className="mt-5 max-w-3xl text-wrap text-[clamp(3.4rem,9vw,6.5rem)] font-extrabold leading-[.94] tracking-[-.075em]">
+            Make room for{" "}
+            <span className="text-[var(--vermilion-ink)]">what’s next.</span>
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-7 text-[var(--muted-ink)] sm:text-lg">
+            Find a local service, choose a time that works, and leave the
+            back-and-forth behind.
+          </p>
+        </div>
+        <div className="lg:justify-self-end lg:pb-2">
+          <div className="flex items-start gap-4 border-l-2 border-[var(--pine)] pl-4">
+            <div>
+              <p className="eyebrow">A clearer way to book</p>
+              <p className="mt-2 max-w-sm text-base leading-6">
+                Available times update as slots are held and confirmed, so two
+                appointments don’t claim the same capacity.
+              </p>
             </div>
           </div>
-
-          {/* Hero Right Column: Interactive Live Concurrency Simulator */}
-          <div className="lg:col-span-6 relative mt-4 lg:mt-0">
-            <HeroBookingSimulator />
-          </div>
+          <Link
+            href="/register-business"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--vermilion-ink)]"
+          >
+            Run a business? Set up appointments{" "}
+            <span aria-hidden="true">↗</span>
+          </Link>
         </div>
       </section>
 
-      {/* Feature Pillar Highlights */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-4 sm:mt-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="glass-panel p-6 flex flex-col gap-3 group hover:border-indigo-500/40 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Clock className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">
-              Flexible Operating Shifts
-            </h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Businesses shut down for lunch, take afternoon breaks, or adjust
-              schedules dynamically. The engine guarantees no service booking
-              ever bleeds into a break.
-            </p>
-          </div>
-
-          <div className="glass-panel p-6 flex flex-col gap-3 group hover:border-purple-500/40 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Users className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">
-              Multi-Staff Concurrency
-            </h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              If a service has 2 stylists or 3 mechanics, booktheslot takes
-              concurrent bookings at that exact same slot until capacity is
-              legitimately full.
-            </p>
-          </div>
-
-          <div className="glass-panel p-6 flex flex-col gap-3 group hover:border-emerald-500/40 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <CreditCard className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-white">
-              Instant Razorpay Checkout
-            </h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Customers hold their slot for 10 minutes, complete payment via
-              UPI, card, or netbanking, and receive a cryptographically verified
-              booking pass.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Explore Stores Showcase Section */}
       <section
-        id="explore-stores"
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full"
+        id="discover"
+        className="border-y border-[var(--hairline)] bg-[var(--sunken)]"
       >
-        {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-          <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-2">
-              <CalendarCheck className="w-4 h-4" />
-              <span>Verified Storefronts</span>
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8 sm:py-14">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div>
+              <p className="eyebrow">Find your next appointment</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-[-.05em] sm:text-[37px]">
+                Good time, right place.
+              </h2>
             </div>
-            <h2 className="text-3xl font-extrabold text-white tracking-tight">
-              Discover & Book Nearby Businesses
-            </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Select any store below to browse services, pick available slots,
-              and confirm appointments.
-            </p>
-          </div>
-
-          {/* Search bar */}
-          <div className="relative min-w-[260px] sm:min-w-[320px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search store, city, or service..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors shadow-sm"
-            />
-          </div>
-        </div>
-
-        {/* Category Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-4 mb-6">
-          {categories.map((cat) => (
-            <button
-              key={cat.label}
-              onClick={() => setSelectedCategory(cat.label)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                selectedCategory === cat.label
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-102"
-                  : "bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08] border border-white/[0.06]"
-              }`}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Business Cards Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className="glass-panel h-80 animate-pulse bg-white/[0.02]"
+            <label className="relative w-full md:max-w-sm">
+              <span className="sr-only">Search by business or city</span>
+              <Search
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-ink)]"
               />
-            ))}
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Business or city"
+                className="h-12 w-full rounded-md border border-[var(--hairline)] bg-[var(--raised)] pl-10 pr-3 text-base placeholder:text-[var(--muted-ink)]"
+              />
+            </label>
           </div>
-        ) : businesses.length === 0 ? (
-          <div className="glass-panel p-12 text-center flex flex-col items-center justify-center gap-3">
-            <Store className="w-12 h-12 text-slate-500" />
-            <h3 className="text-lg font-bold text-white">
-              No businesses found
-            </h3>
-            <p className="text-sm text-slate-400">
-              Try adjusting your search criteria or register a new store!
+
+          <fieldset className="mt-7 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-2">
+            <legend className="sr-only">Filter by business type</legend>
+            {categories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                aria-pressed={selectedCategory === category}
+                onClick={() => setSelectedCategory(category)}
+                className={`min-h-11 shrink-0 rounded-md border px-3.5 text-sm font-medium transition-colors ${selectedCategory === category ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]" : "border-[var(--hairline)] bg-[var(--raised)] hover:bg-[var(--paper)]"}`}
+              >
+                {category}
+              </button>
+            ))}
+          </fieldset>
+
+          <div className="mt-7" aria-live="polite">
+            {loading ? (
+              <div
+                className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                aria-busy="true"
+              >
+                {[1, 2, 3].map((item) => (
+                  <div
+                    key={item}
+                    className="overflow-hidden rounded-xl border border-[var(--hairline)] bg-[var(--raised)]"
+                  >
+                    <div className="skeleton aspect-[16/9]" />
+                    <div className="grid gap-3 p-5">
+                      <div className="skeleton h-6 w-2/3" />
+                      <div className="skeleton h-4 w-1/3" />
+                      <div className="mt-3 border-t border-[var(--hairline)] pt-4">
+                        <div className="skeleton h-4 w-1/2" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              <div className="surface p-6" role="alert">
+                <p className="font-semibold">Businesses didn’t load.</p>
+                <p className="mt-1 text-sm text-[var(--muted-ink)]">{error}</p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="secondary-action mt-4 text-sm"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : businesses.length === 0 ? (
+              <div className="surface px-5 py-10 text-center">
+                <p className="text-xl font-bold">No matches this time.</p>
+                <p className="mt-2 text-sm text-[var(--muted-ink)]">
+                  Try another city or service type.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {businesses.map((business) => (
+                  <BusinessCard key={business._id} business={business} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-8 sm:py-20 lg:grid-cols-[.75fr_1.25fr]">
+        <div>
+          <p className="eyebrow">Booking, made straightforward</p>
+          <h2 className="mt-3 max-w-md text-3xl font-bold tracking-[-.05em] sm:text-4xl">
+            From finding a service to showing up.
+          </h2>
+          <p className="mt-4 max-w-md leading-7 text-[var(--muted-ink)]">
+            BookTheSlot brings local service providers and people who need them
+            together, with appointment times you can choose online.
+          </p>
+        </div>
+        <ol className="grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              number: "01",
+              title: "Find a local service",
+              copy: "Search by business or city, then narrow the list by service type.",
+            },
+            {
+              number: "02",
+              title: "Choose a time",
+              copy: "Review the services and available appointment times before booking.",
+            },
+            {
+              number: "03",
+              title: "Confirm your visit",
+              copy: "Sign in, complete checkout, and keep your booking details handy.",
+            },
+          ].map((step) => (
+            <li key={step.number} className="surface p-5 sm:p-6">
+              <span className="font-mono text-xs text-[var(--vermilion-ink)]">
+                {step.number}
+              </span>
+              <h3 className="mt-7 text-lg font-bold tracking-[-.03em]">
+                {step.title}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted-ink)]">
+                {step.copy}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="border-y border-[var(--hairline)] bg-[var(--sunken)]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-8 sm:py-16 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="max-w-2xl">
+            <p className="eyebrow">For local businesses</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-[-.05em] sm:text-4xl">
+              Make your schedule easier to manage.
+            </h2>
+            <p className="mt-4 leading-7 text-[var(--muted-ink)]">
+              Set up your services, prices, opening hours, and appointment
+              capacity. Manage bookings and keep your business information in
+              one place.
             </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {businesses.map((biz) => (
-              <BusinessCard key={biz._id} business={biz} />
-            ))}
+          <div className="flex flex-col items-start gap-3 sm:flex-row md:flex-col md:items-stretch">
+            <Link href="/register-business" className="primary-action">
+              Set up your business <span aria-hidden="true">↗</span>
+            </Link>
+            <Link href="/dashboard" className="secondary-action">
+              Go to merchant workspace
+            </Link>
           </div>
-        )}
+        </div>
       </section>
     </div>
   );

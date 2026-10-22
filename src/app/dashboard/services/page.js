@@ -16,8 +16,9 @@ import { Suspense, useEffect, useState } from "react";
 import {
   createService,
   deleteService,
-  getBusinesses,
+  getProfile,
   getServicesByBusiness,
+  uploadBusinessImage,
 } from "../../../lib/api";
 
 function ServicesManagerContent() {
@@ -37,45 +38,57 @@ function ServicesManagerContent() {
     durationMinutes: 45,
     price: 499,
     capacity: 2, // Default 2 employees for concurrent bookings
+    bufferMinutes: 0,
     category: "General",
+    imageUrl: "",
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const durationPresets = [10, 15, 30, 45, 60, 90, 120];
 
   // 1. Fetch businesses
   useEffect(() => {
-    getBusinesses()
+    getProfile()
       .then((res) => {
-        if (res.success && res.data.length > 0) {
-          setBusinesses(res.data);
-          if (!selectedBizId) {
-            setSelectedBizId(res.data[0]._id);
-          }
+        const ownedBusinesses = res.data?.businesses || [];
+        if (res.success && ownedBusinesses.length > 0) {
+          setBusinesses(ownedBusinesses);
+          setSelectedBizId((current) => current || ownedBusinesses[0]._id);
         }
       })
       .catch((err) => console.error(err));
-  }, [selectedBizId]);
+  }, []);
 
   // 2. Fetch services for selected business
   useEffect(() => {
-    if (!selectedBizId) return;
+    let stale = false;
+    if (!selectedBizId)
+      return () => {
+        stale = true;
+      };
 
     setLoading(true);
     setMessage({ type: "", text: "" });
 
     getServicesByBusiness(selectedBizId)
       .then((res) => {
-        if (res.success) {
+        if (!stale && res.success) {
           setServices(res.data);
         }
       })
       .catch((err) => {
+        if (stale) return;
         setMessage({
           type: "error",
           text: err.message || "Failed to load services",
         });
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
   }, [selectedBizId]);
 
   // Handle Add Service
@@ -97,7 +110,9 @@ function ServicesManagerContent() {
           durationMinutes: 45,
           price: 499,
           capacity: 2,
+          bufferMinutes: 0,
           category: "General",
+          imageUrl: "",
         });
       }
     } catch (err) {
@@ -153,7 +168,7 @@ function ServicesManagerContent() {
           <select
             value={selectedBizId}
             onChange={(e) => setSelectedBizId(e.target.value)}
-            className="bg-[#0f172a] border border-white/[0.12] rounded-xl px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-indigo-500"
+            className="bg-[var(--raised)] border border-[var(--hairline)] rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--ink)] focus:outline-none focus:border-[var(--vermilion-ink)]"
           >
             {businesses.map((biz) => (
               <option key={biz._id} value={biz._id}>
@@ -309,6 +324,29 @@ function ServicesManagerContent() {
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">
+                  Cleanup buffer (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="120"
+                  value={form.bufferMinutes}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      bufferMinutes: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2 text-white font-mono focus:outline-none focus:border-indigo-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Blocks the next slot after this service so staff can reset the
+                  room.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">
                   Price (INR) *
                 </label>
                 <div className="relative">
@@ -341,6 +379,49 @@ function ServicesManagerContent() {
                   }
                   className="w-full bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">
+                  Service image
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingImage || !selectedBizId}
+                  onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setUploadingImage(true);
+                    try {
+                      const imageUrl = await uploadBusinessImage(
+                        selectedBizId,
+                        file,
+                      );
+                      setForm((current) => ({ ...current, imageUrl }));
+                      setMessage({
+                        type: "success",
+                        text: "Image uploaded. It will be saved with this service.",
+                      });
+                    } catch (error) {
+                      setMessage({
+                        type: "error",
+                        text: error.message || "Image upload failed",
+                      });
+                    } finally {
+                      setUploadingImage(false);
+                    }
+                  }}
+                  className="w-full text-sm text-slate-300"
+                />
+                {uploadingImage && (
+                  <p className="mt-1 text-xs text-slate-400">Uploading…</p>
+                )}
+                {form.imageUrl && (
+                  <p className="mt-1 truncate text-xs text-emerald-400">
+                    Image ready to save
+                  </p>
+                )}
               </div>
 
               <button
@@ -402,6 +483,9 @@ function ServicesManagerContent() {
                         <span className="flex items-center gap-1 text-indigo-400 font-medium">
                           <Clock className="w-3 h-3" />
                           {svc.durationMinutes} mins
+                          {svc.bufferMinutes
+                            ? ` + ${svc.bufferMinutes}m buffer`
+                            : ""}
                         </span>
                         <span className="flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                           <Users className="w-3 h-3" />
@@ -439,7 +523,7 @@ export default function ServicesManagerPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-slate-400">
+        <div className="flex flex-1 items-center justify-center py-16 text-slate-400">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
             <span>Loading services manager...</span>

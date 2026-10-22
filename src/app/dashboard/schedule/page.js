@@ -15,11 +15,12 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
   addDateOverride,
-  getBusinesses,
+  getProfile,
   getSchedule,
   removeDateOverride,
   updateWeeklySchedule,
 } from "../../../lib/api";
+import { formatLocalDate } from "../../../lib/dates";
 
 function ScheduleManagerContent() {
   const searchParams = useSearchParams();
@@ -43,7 +44,7 @@ function ScheduleManagerContent() {
   useEffect(() => {
     setOverrideForm((prev) => ({
       ...prev,
-      date: new Date().toISOString().split("T")[0],
+      date: formatLocalDate(new Date()),
     }));
   }, []);
 
@@ -59,38 +60,47 @@ function ScheduleManagerContent() {
 
   // 1. Fetch businesses list
   useEffect(() => {
-    getBusinesses()
+    getProfile()
       .then((res) => {
-        if (res.success && res.data.length > 0) {
-          setBusinesses(res.data);
-          if (!selectedBizId) {
-            setSelectedBizId(res.data[0]._id);
-          }
+        const ownedBusinesses = res.data?.businesses || [];
+        if (res.success && ownedBusinesses.length > 0) {
+          setBusinesses(ownedBusinesses);
+          setSelectedBizId((current) => current || ownedBusinesses[0]._id);
         }
       })
       .catch((err) => console.error(err));
-  }, [selectedBizId]);
+  }, []);
 
   // 2. Fetch schedule for selected business
   useEffect(() => {
-    if (!selectedBizId) return;
+    let stale = false;
+    if (!selectedBizId)
+      return () => {
+        stale = true;
+      };
 
     setLoading(true);
     setMessage({ type: "", text: "" });
 
     getSchedule(selectedBizId)
       .then((res) => {
-        if (res.success) {
+        if (!stale && res.success) {
           setSchedule(res.data);
         }
       })
       .catch((err) => {
+        if (stale) return;
         setMessage({
           type: "error",
           text: err.message || "Failed to load schedule",
         });
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
+    return () => {
+      stale = true;
+    };
   }, [selectedBizId]);
 
   // Handle Day Open/Closed Toggle
@@ -245,7 +255,7 @@ function ScheduleManagerContent() {
           <select
             value={selectedBizId}
             onChange={(e) => setSelectedBizId(e.target.value)}
-            className="bg-[#0f172a] border border-white/[0.12] rounded-xl px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-indigo-500"
+            className="bg-[var(--raised)] border border-[var(--hairline)] rounded-xl px-4 py-2.5 text-sm font-semibold text-[var(--ink)] focus:outline-none focus:border-[var(--vermilion-ink)]"
           >
             {businesses.map((biz) => (
               <option key={biz._id} value={biz._id}>
@@ -640,7 +650,7 @@ export default function ScheduleManagerPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-slate-400">
+        <div className="flex flex-1 items-center justify-center py-16 text-slate-400">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
             <span>Loading schedule manager...</span>

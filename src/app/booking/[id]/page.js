@@ -4,18 +4,35 @@ import {
   AlertCircle,
   ArrowLeft,
   Calendar,
-  CheckCircle2,
   Clock,
   CreditCard,
+  Download,
   MapPin,
   Phone,
   Printer,
-  QrCode,
-  XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import { use, useEffect, useState } from "react";
 import { cancelBooking, getBookingById } from "../../../lib/api";
+
+function displayTime(value) {
+  const [hours, minutes] = (value || "").split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+}
+
+function displayDate(value) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 export default function BookingConfirmationPage({ params }) {
   const resolvedParams = use(params);
@@ -25,7 +42,6 @@ export default function BookingConfirmationPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  const [_cancelSuccess, setCancelSuccess] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,8 +81,10 @@ export default function BookingConfirmationPage({ params }) {
         "Customer requested cancellation",
       );
       if (res.success) {
-        setBooking(res.data);
-        setCancelSuccess(true);
+        setBooking((current) => ({
+          ...current,
+          status: res.data?.status || "CANCELLED",
+        }));
       }
     } catch (err) {
       alert(`Failed to cancel: ${err.message}`);
@@ -75,9 +93,34 @@ export default function BookingConfirmationPage({ params }) {
     }
   };
 
+  const handleDownloadQR = () => {
+    const svg = document.querySelector("#qr-code-svg");
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      const pngUrl = canvas.toDataURL("image/png");
+      const downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      downloadLink.download = `booking-${booking.bookingReference}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    };
+
+    img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 text-slate-400">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-slate-400">
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm">
           Retrieving your confirmed booking pass...
@@ -104,11 +147,29 @@ export default function BookingConfirmationPage({ params }) {
 
   const isConfirmed = booking.status === "CONFIRMED";
   const isCancelled = booking.status === "CANCELLED";
+  const isExpired = booking.status === "EXPIRED";
+  const isPending = booking.status === "PENDING_PAYMENT";
+  const isCompleted = booking.status === "COMPLETED";
+  const statusTitle = isCancelled
+    ? "Booking Cancelled"
+    : isExpired
+      ? "Reservation Expired"
+      : isPending
+        ? "Payment Pending"
+        : isCompleted
+          ? "Appointment completed"
+          : "Appointment confirmed";
+  const statusBadgeClass =
+    isCancelled || isExpired
+      ? "badge-rose"
+      : isPending
+        ? "badge-amber"
+        : "badge-emerald";
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 flex flex-col gap-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:gap-8 sm:px-8 sm:py-12">
       {/* Top Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/store/${booking.businessId?.slug || ""}`}
           className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
@@ -127,51 +188,35 @@ export default function BookingConfirmationPage({ params }) {
       </div>
 
       {/* Main Digital Ticket Pass */}
-      <div className="glass-panel overflow-hidden border border-white/[0.15] shadow-2xl relative">
+      <div className="ticket-cut glass-panel overflow-hidden border border-white/[0.15] relative">
         {/* Ticket Header */}
         <div
           className={`p-6 sm:p-8 border-b border-white/[0.1] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-            isCancelled
+            isCancelled || isExpired
               ? "bg-rose-950/20"
-              : "bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900"
+              : isPending
+                ? "bg-amber-950/20"
+                : "pass-confirmed"
           }`}
         >
           <div className="flex items-center gap-4">
-            <div
-              className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                isCancelled
-                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-lg shadow-emerald-500/20"
-              }`}
-            >
-              {isCancelled ? (
-                <XCircle className="w-8 h-8" />
-              ) : (
-                <CheckCircle2 className="w-8 h-8" />
-              )}
-            </div>
-
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
                   Digital Booking Pass
                 </span>
-                <span
-                  className={`badge ${
-                    isCancelled ? "badge-rose" : "badge-emerald"
-                  } text-[10px]`}
-                >
+                <span className={`badge ${statusBadgeClass} text-[10px]`}>
                   {booking.status}
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-white mt-0.5">
-                {isCancelled ? "Booking Cancelled" : "Appointment Confirmed!"}
+                {statusTitle}
               </h1>
             </div>
           </div>
 
           {/* Reference Badge */}
-          <div className="bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-right">
+          <div className="max-w-full rounded-xl border border-white/10 bg-black/50 px-4 py-2 text-right sm:shrink-0">
             <div className="text-[10px] uppercase font-bold text-slate-400">
               Booking Reference
             </div>
@@ -213,7 +258,7 @@ export default function BookingConfirmationPage({ params }) {
                   <span>Date</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {booking.date}
+                  {displayDate(booking.date)}
                 </div>
               </div>
 
@@ -223,7 +268,14 @@ export default function BookingConfirmationPage({ params }) {
                   <span>Reserved Slot</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {booking.startTime} – {booking.endTime}
+                  {displayTime(booking.startTime)} –{" "}
+                  {displayTime(booking.endTime)}
+                </div>
+                <div className="mt-1 text-[11px] text-slate-400">
+                  {booking.businessId?.timezone === "Asia/Kolkata" ||
+                  !booking.businessId?.timezone
+                    ? "India Standard Time (IST)"
+                    : booking.businessId.timezone}
                 </div>
               </div>
             </div>
@@ -243,47 +295,71 @@ export default function BookingConfirmationPage({ params }) {
               <div>
                 <div className="text-slate-400 font-medium">Reserved For</div>
                 <div className="text-white font-bold text-sm mt-0.5">
-                  {booking.customer?.name}
+                  {booking.customer?.name || "Your appointment"}
                 </div>
-                <div className="text-slate-400 mt-0.5">
-                  {booking.customer?.phone}
-                </div>
+                {booking.customer?.phone && (
+                  <div className="text-slate-400 mt-0.5">
+                    {booking.customer.phone}
+                  </div>
+                )}
+                {!booking.customer && (
+                  <div className="text-slate-400 mt-0.5">
+                    Customer details are private on this public pass.
+                  </div>
+                )}
+                {booking.customer?.notes ? (
+                  <div className="text-slate-500 mt-1 italic">
+                    “{booking.customer.notes}”
+                  </div>
+                ) : null}
               </div>
             </div>
 
             {/* Payment Details */}
-            <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4 text-xs">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <CreditCard className="w-4 h-4 text-indigo-400" />
                 <span className="text-slate-300">Payment Status:</span>
                 <span className="font-semibold text-emerald-400">
-                  {booking.payment?.status} (₹{booking.amount})
+                  {booking.payment?.status} (₹
+                  {new Intl.NumberFormat("en-IN").format(booking.amount)})
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-slate-500">
-                Order: {booking.payment?.orderId || "Mock Dev"}
-              </span>
+              {booking.payment?.orderId && (
+                <span className="font-mono text-[11px] text-slate-500">
+                  Order: {booking.payment.orderId}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Right Pass Visual / QR Code Area (4 cols) */}
           <div className="md:col-span-4 flex flex-col items-center justify-center p-6 bg-white/[0.02] border-t md:border-t-0 md:border-l border-white/[0.08] rounded-xl text-center gap-3">
             <div className="w-32 h-32 bg-white rounded-xl p-2.5 shadow-lg flex items-center justify-center">
-              {/* Graphical QR Code Placeholder */}
-              <div className="w-full h-full border-2 border-dashed border-slate-400 rounded-lg flex flex-col items-center justify-center text-slate-800 p-2">
-                <QrCode className="w-16 h-16 text-indigo-900" />
-                <span className="text-[8px] font-mono font-bold tracking-tighter text-slate-700 mt-1">
-                  {booking.bookingReference}
-                </span>
-              </div>
+              <QRCodeSVG
+                id="qr-code-svg"
+                value={booking.bookingReference}
+                size={112}
+                level="H"
+                includeMargin={false}
+              />
             </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadQR}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Save QR Code</span>
+            </button>
 
             <div className="text-[11px] text-slate-400">
               Present this pass or reference code upon arrival at the
               storefront.
             </div>
 
-            {isConfirmed && (
+            {(isConfirmed || isPending) && booking.userId && (
               <button
                 onClick={handleCancel}
                 disabled={cancelling}

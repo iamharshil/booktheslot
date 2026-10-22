@@ -1,314 +1,641 @@
 "use client";
 
 import {
-  Calendar,
-  CalendarDays,
-  ChevronRight,
-  Clock,
-  DollarSign,
-  ShieldCheck,
-  Sparkles,
-  Users,
+  CalendarCheck2,
+  CheckCircle2,
+  CircleAlert,
+  ClipboardCheck,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getBusinessBookings, getBusinesses } from "../../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import {
+  cancelBooking,
+  completeBooking,
+  getBusinessBookings,
+  getProfile,
+} from "../../lib/api";
+
+function toMinutes(time) {
+  const [hours, minutes] = (time || "0:0").split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function displayTime(value) {
+  const [hours, minutes] = (value || "").split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return value;
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+}
+
+function shiftDate(date, days) {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
+}
+
+function displayDate(date) {
+  const value = new Date(`${date}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(value);
+}
+
+function dateInTimezone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function minutesInTimezone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
+  return Number(values.hour) * 60 + Number(values.minute);
+}
 
 export default function MerchantDashboard() {
   const [businesses, setBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [selectedDate, setSelectedDate] = useState("");
   const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [revealed, setRevealed] = useState({});
+  const [cancellingId, setCancellingId] = useState("");
+  const [completingId, setCompletingId] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [now, setNow] = useState(() => new Date());
+  const timezone = selectedBusiness?.timezone || "Asia/Kolkata";
+  const today = dateInTimezone(now, timezone);
+  const activeDate = selectedDate || today;
+  const isToday = activeDate === today;
 
-  // Fetch businesses
   useEffect(() => {
-    getBusinesses()
-      .then((res) => {
-        if (res.success && res.data.length > 0) {
-          setBusinesses(res.data);
-          setSelectedBusiness(res.data[0]);
-        }
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  // Fetch bookings when selectedBusiness changes
   useEffect(() => {
-    if (!selectedBusiness?._id) return;
-
-    getBusinessBookings(selectedBusiness._id)
-      .then((res) => {
-        if (res.success) {
-          setBookings(res.data);
-        }
-      })
-      .catch((err) => console.error(err));
-  }, [selectedBusiness]);
-
-  if (loading) {
-    return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 text-slate-400">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-sm">Loading merchant dashboard...</span>
-      </div>
+    setShowWelcome(
+      new URLSearchParams(window.location.search).get("welcome") === "1",
     );
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getProfile()
+      .then((res) => {
+        if (!active) return;
+        const owned = res.data?.businesses || [];
+        setBusinesses(owned);
+        if (owned.length) setSelectedBusiness(owned[0]);
+      })
+      .catch((err) => {
+        if (active)
+          setLoadError(
+            err.message || "Your business list could not be loaded.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBusiness?._id) {
+      setBookings([]);
+      return undefined;
+    }
+    let active = true;
+    setBookingsLoading(true);
+    setLoadError("");
+    getBusinessBookings(selectedBusiness._id, { date: activeDate })
+      .then((res) => {
+        if (active) setBookings(res.data || []);
+      })
+      .catch((err) => {
+        if (active)
+          setLoadError(
+            err.message || "Today’s appointments could not be loaded.",
+          );
+      })
+      .finally(() => {
+        if (active) setBookingsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedBusiness?._id, activeDate]);
+
+  const ordered = useMemo(
+    () => [...bookings].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [bookings],
+  );
+  const visibleOrdered = useMemo(() => {
+    const query = bookingSearch.trim().toLowerCase();
+    if (!query) return ordered;
+    return ordered.filter((booking) =>
+      [
+        booking.customer?.name,
+        booking.customer?.email,
+        booking.serviceId?.name,
+        booking.bookingReference,
+      ]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [bookingSearch, ordered]);
+  const nowMinute = minutesInTimezone(now, timezone);
+  const nowIndex = isToday
+    ? visibleOrdered.findIndex(
+        (booking) => toMinutes(booking.startTime) >= nowMinute,
+      )
+    : -1;
+
+  const confirmedCount = bookings.filter(
+    (booking) => booking.status === "CONFIRMED",
+  ).length;
+  const pendingCount = bookings.filter(
+    (booking) => booking.status === "PENDING_PAYMENT",
+  ).length;
+  const completedCount = bookings.filter(
+    (booking) => booking.status === "COMPLETED",
+  ).length;
+
+  function appointmentHasEnded(booking) {
+    if (activeDate < today) return true;
+    if (activeDate > today) return false;
+    return toMinutes(booking.endTime) <= nowMinute;
   }
 
-  const confirmedBookings = bookings.filter((b) => b.status === "CONFIRMED");
-  const totalRevenue = confirmedBookings.reduce(
-    (sum, b) => sum + (b.amount || 0),
-    0,
-  );
+  async function cancel(booking) {
+    if (
+      !window.confirm(
+        `Cancel the ${displayTime(booking.startTime)} appointment and release this time?`,
+      )
+    )
+      return;
+    setCancellingId(booking._id);
+    try {
+      await cancelBooking(booking._id, "Cancelled by merchant");
+      const result = await getBusinessBookings(selectedBusiness._id, {
+        date: activeDate,
+      });
+      setBookings(result.data || []);
+    } catch (err) {
+      setLoadError(err.message || "The appointment could not be cancelled.");
+    } finally {
+      setCancellingId("");
+    }
+  }
+
+  async function markComplete(booking) {
+    if (!window.confirm("Mark this appointment as completed?")) return;
+    setCompletingId(booking._id);
+    setLoadError("");
+    try {
+      const result = await completeBooking(booking._id);
+      setBookings((items) =>
+        items.map((item) =>
+          item._id === booking._id
+            ? { ...item, status: result.data?.status || "COMPLETED" }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setLoadError(err.message || "The appointment could not be completed.");
+    } finally {
+      setCompletingId("");
+    }
+  }
+
+  if (loading)
+    return (
+      <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-8">
+        <div className="skeleton h-8 w-48" />
+        <div className="mt-7 space-y-3">
+          {[1, 2, 3].map((item) => (
+            <div className="skeleton h-24 w-full" key={item} />
+          ))}
+        </div>
+      </div>
+    );
+
+  if (!businesses.length)
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-16 sm:px-8">
+        <p className="eyebrow">Merchant workspace</p>
+        <h1 className="mt-3 text-4xl font-bold tracking-[-.06em]">
+          Your day, in order.
+        </h1>
+        <div className="surface mt-8 p-6">
+          <h2 className="text-xl font-bold">
+            No business is connected to this account.
+          </h2>
+          <p className="mt-2 text-sm text-[var(--muted-ink)]">
+            Set up a business before adding services and appointment hours.
+          </p>
+          <Link className="primary-action mt-5" href="/register-business">
+            Register a business ↗
+          </Link>
+        </div>
+      </div>
+    );
+
+  const rowHeight = 120;
+  const height = Math.max(280, visibleOrdered.length * rowHeight + 80);
+  const nowPosition =
+    48 + (nowIndex === -1 ? visibleOrdered.length : nowIndex) * rowHeight;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-10">
-      {/* Top Bar: Store Switcher & Quick Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/[0.08]">
+    <div
+      className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 sm:py-12"
+      data-density="compact"
+    >
+      <div className="flex flex-col gap-5 border-b border-[var(--hairline)] pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Storefront Control Center</span>
-          </div>
-          <h1 className="text-3xl font-extrabold text-white">
-            Merchant Dashboard
+          <p className="eyebrow">
+            Merchant · {isToday ? "Today" : displayDate(activeDate)}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-[-.045em] sm:text-4xl">
+            Appointments
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Manage your schedule, breaks, services, staff capacity, and incoming
-            bookings.
+          <p className="mt-2 text-sm text-[var(--muted-ink)]">
+            {displayDate(activeDate)} ·{" "}
+            {timezone === "Asia/Kolkata"
+              ? "India Standard Time (IST)"
+              : timezone}
           </p>
         </div>
-
-        {/* Store Selector Dropdown */}
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-slate-400">
-            Active Store:
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="business-picker">
+            Business
           </label>
           <select
+            id="business-picker"
             value={selectedBusiness?._id || ""}
-            onChange={(e) => {
-              const b = businesses.find((x) => x._id === e.target.value);
-              if (b) setSelectedBusiness(b);
+            onChange={(event) => {
+              setSelectedBusiness(
+                businesses.find(
+                  (business) => business._id === event.target.value,
+                ),
+              );
+              setSelectedDate("");
             }}
-            className="bg-[#0f172a] border border-white/[0.12] rounded-xl px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-indigo-500 transition-colors"
+            className="min-h-11 max-w-full rounded-md border border-[var(--hairline)] bg-[var(--raised)] px-3 text-sm"
           >
-            {businesses.map((biz) => (
-              <option key={biz._id} value={biz._id}>
-                {biz.name} ({biz.category})
+            {businesses.map((business) => (
+              <option key={business._id} value={business._id}>
+                {business.name}
               </option>
             ))}
           </select>
+          <Link
+            href={`/store/${selectedBusiness.slug}`}
+            className="secondary-action text-sm"
+          >
+            View business
+          </Link>
+        </div>
+      </div>
 
-          {selectedBusiness && (
+      <section className="dashboard-metrics" aria-label="Appointment summary">
+        {[
+          {
+            label: "Appointments",
+            value: bookings.length,
+            hint: "Selected day",
+            icon: CalendarCheck2,
+            tone: "pine",
+          },
+          {
+            label: "Confirmed",
+            value: confirmedCount,
+            hint: "Ready to serve",
+            icon: CheckCircle2,
+            tone: "green",
+          },
+          {
+            label: "Needs attention",
+            value: pendingCount,
+            hint: "Payment pending",
+            icon: CircleAlert,
+            tone: "amber",
+          },
+          {
+            label: "Completed",
+            value: completedCount,
+            hint: "Finished today",
+            icon: ClipboardCheck,
+            tone: "neutral",
+          },
+        ].map(({ label, value, hint, icon: Icon, tone }) => (
+          <article
+            className={`dashboard-metric dashboard-metric-${tone}`}
+            key={label}
+          >
+            <span className="dashboard-metric-icon">
+              <Icon size={18} aria-hidden="true" />
+            </span>
+            <span className="dashboard-metric-label">{label}</span>
+            <strong>{value}</strong>
+            <span className="dashboard-metric-hint">{hint}</span>
+          </article>
+        ))}
+      </section>
+
+      {showWelcome && selectedBusiness && (
+        <section
+          className="surface mt-5 p-5 sm:p-6"
+          aria-labelledby="welcome-title"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="eyebrow">Setup complete</p>
+              <h2 id="welcome-title" className="mt-2 text-xl font-bold">
+                {selectedBusiness.name} is ready to take bookings.
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted-ink)]">
+                Review your opening hours and service details, then share your
+                public page with customers.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss setup message"
+              onClick={() => setShowWelcome(false)}
+              className="secondary-action self-start text-sm"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href={`/dashboard/schedule?businessId=${selectedBusiness._id}`}
+              className="secondary-action text-sm"
+            >
+              Review opening hours
+            </Link>
+            <Link
+              href={`/dashboard/services?businessId=${selectedBusiness._id}`}
+              className="secondary-action text-sm"
+            >
+              Manage services
+            </Link>
             <Link
               href={`/store/${selectedBusiness.slug}`}
-              target="_blank"
-              className="btn-secondary text-xs py-2 px-3 rounded-xl flex items-center gap-1.5 whitespace-nowrap"
+              className="primary-action text-sm"
             >
-              <span>View Live Store</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              View public page <span aria-hidden="true">↗</span>
             </Link>
-          )}
-        </div>
-      </div>
+          </div>
+        </section>
+      )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="glass-panel p-6 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase tracking-wider">
-              Total Bookings
-            </span>
-            <Calendar className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white">
-            {bookings.length}
-          </div>
-          <div className="text-[11px] text-slate-500">
-            {confirmedBookings.length} confirmed via Razorpay
-          </div>
-        </div>
-
-        <div className="glass-panel p-6 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase tracking-wider">
-              Gross Revenue
-            </span>
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-emerald-400">
-            ₹{totalRevenue.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-500">
-            Instant settlements enabled
-          </div>
-        </div>
-
-        <div className="glass-panel p-6 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase tracking-wider">
-              Shift Flexibility
-            </span>
-            <Clock className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-white">Multi-Shift</div>
-          <div className="text-[11px] text-slate-500">
-            Lunch breaks & shutdown support
-          </div>
-        </div>
-
-        <div className="glass-panel p-6 flex flex-col gap-2">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-semibold uppercase tracking-wider">
-              Concurrency Engine
-            </span>
-            <ShieldCheck className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-purple-400">Atomic</div>
-          <div className="text-[11px] text-slate-500">
-            Multi-staff & zero overbooking
-          </div>
-        </div>
-      </div>
-
-      {/* Management Navigation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Link
-          href={`/dashboard/schedule?businessId=${selectedBusiness?._id || ""}`}
-          className="glass-panel p-6 flex items-center justify-between group hover:border-indigo-500/40 transition-all text-decoration-none"
+      {loadError && (
+        <div
+          className="mt-5 surface border-l-4 border-l-[#c2370f] p-4 text-sm"
+          role="alert"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <CalendarDays className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">
-                Hours, Breaks & Closures Manager
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Configure opening/closing times, afternoon lunch shutdowns, and
-                ad-hoc closures.
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white group-hover:translate-x-1 transition-all" />
-        </Link>
+          {loadError}
+        </div>
+      )}
 
-        <Link
-          href={`/dashboard/services?businessId=${selectedBusiness?._id || ""}`}
-          className="glass-panel p-6 flex items-center justify-between group hover:border-emerald-500/40 transition-all text-decoration-none"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">
-                Services & Staff Capacity
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Set durations (10m, 60m, 90m), pricing, and assign 2+ employees
-                for concurrent slots.
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white group-hover:translate-x-1 transition-all" />
-        </Link>
-      </div>
-
-      {/* Recent Bookings Table */}
-      <div className="glass-panel p-6 flex flex-col gap-5">
-        <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+      <section className="mt-8" aria-labelledby="timeline-title">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white">
-              Recent Appointments
+            <p className="eyebrow">
+              {isToday ? "Today" : displayDate(activeDate)} · {bookings.length}{" "}
+              appointments
+            </p>
+            <h2
+              id="timeline-title"
+              className="mt-1 text-2xl font-bold tracking-[-.04em]"
+            >
+              {isToday ? "Today’s timetable" : "Daily timetable"}
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Live feed of all customer reservations
+          </div>
+          <div className="dashboard-toolbar">
+            <label className="dashboard-search">
+              <Search size={16} aria-hidden="true" />
+              <span className="sr-only">Search appointments</span>
+              <input
+                type="search"
+                value={bookingSearch}
+                onChange={(event) => setBookingSearch(event.target.value)}
+                placeholder="Search appointments"
+              />
+            </label>
+            <div className="dashboard-date-controls">
+              <button
+                type="button"
+                className="secondary-action min-h-10 text-sm"
+                aria-label="Previous day"
+                onClick={() => setSelectedDate(shiftDate(activeDate, -1))}
+              >
+                ← <span className="hidden sm:inline">Previous</span>
+              </button>
+              <label className="sr-only" htmlFor="dashboard-date">
+                Appointment date
+              </label>
+              <input
+                id="dashboard-date"
+                type="date"
+                value={activeDate}
+                onChange={(event) =>
+                  setSelectedDate(event.target.value || today)
+                }
+                className="min-h-10 rounded-md border px-3 text-sm"
+              />
+              <button
+                type="button"
+                className="secondary-action min-h-10 text-sm"
+                aria-label="Next day"
+                onClick={() => setSelectedDate(shiftDate(activeDate, 1))}
+              >
+                <span className="hidden sm:inline">Next</span> →
+              </button>
+              {!isToday && (
+                <button
+                  type="button"
+                  className="secondary-action min-h-10 text-sm"
+                  onClick={() => setSelectedDate("")}
+                >
+                  Today
+                </button>
+              )}
+              <span className="eyebrow hidden lg:block">
+                {timezone === "Asia/Kolkata"
+                  ? "Times shown in IST"
+                  : `Times shown in ${timezone}`}
+              </span>
+            </div>
+          </div>
+        </div>
+        {bookingsLoading ? (
+          <div className="surface mt-5 h-28 animate-pulse" aria-busy="true">
+            <span className="sr-only">Loading appointments</span>
+          </div>
+        ) : !visibleOrdered.length ? (
+          <div className="surface mt-5 px-5 py-12 text-center">
+            <p className="text-xl font-bold">
+              {isToday
+                ? "The timetable is clear."
+                : "No appointments on this date."}
+            </p>
+            <p className="mt-2 text-sm text-[var(--muted-ink)]">
+              {isToday
+                ? "New bookings for today will appear here."
+                : `Choose another date to review ${selectedBusiness.name}’s bookings.`}
             </p>
           </div>
-          <span className="text-xs text-slate-400 bg-white/[0.04] px-3 py-1 rounded-lg border border-white/[0.06]">
-            {bookings.length} Total
-          </span>
-        </div>
-
-        {bookings.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400">
-            No bookings recorded yet for this business. Book a slot from the
-            store page to see it here!
-          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.08] text-slate-400 uppercase tracking-wider">
-                  <th className="pb-3 font-semibold">Reference</th>
-                  <th className="pb-3 font-semibold">Customer</th>
-                  <th className="pb-3 font-semibold">Service</th>
-                  <th className="pb-3 font-semibold">Date & Time</th>
-                  <th className="pb-3 font-semibold">Amount</th>
-                  <th className="pb-3 font-semibold">Status</th>
-                  <th className="pb-3 font-semibold text-right">Pass</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04]">
-                {bookings.map((b) => (
-                  <tr
-                    key={b._id}
-                    className="hover:bg-white/[0.02] transition-colors"
+          <div className="surface mt-5 overflow-hidden">
+            <div className="grid grid-cols-[64px_1fr] sm:grid-cols-[86px_1fr]">
+              <div
+                className="relative border-r border-[var(--hairline)]"
+                style={{ minHeight: height }}
+                aria-hidden="true"
+              >
+                <div className="absolute left-2 top-2 eyebrow">TIME</div>
+                {visibleOrdered.map((booking, index) => (
+                  <span
+                    key={booking._id}
+                    className="time absolute left-2 text-xs font-semibold"
+                    style={{ top: `${48 + index * rowHeight}px` }}
                   >
-                    <td className="py-3 font-mono font-bold text-indigo-400">
-                      {b.bookingReference}
-                    </td>
-                    <td className="py-3">
-                      <div className="font-semibold text-white">
-                        {b.customer?.name}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {b.customer?.phone}
-                      </div>
-                    </td>
-                    <td className="py-3 text-slate-300">
-                      <div>{b.serviceId?.name || "General Service"}</div>
-                      <div className="text-[11px] text-slate-400">
-                        {b.durationMinutes} mins
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <div className="text-white font-medium">{b.date}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        {b.startTime} – {b.endTime}
-                      </div>
-                    </td>
-                    <td className="py-3 font-bold text-white">₹{b.amount}</td>
-                    <td className="py-3">
-                      <span
-                        className={`badge ${
-                          b.status === "CONFIRMED"
-                            ? "badge-emerald"
-                            : b.status === "PENDING_PAYMENT"
-                              ? "badge-amber"
-                              : "badge-rose"
-                        } text-[10px]`}
-                      >
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <Link
-                        href={`/booking/${b._id}`}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-medium underline"
-                      >
-                        View Pass
-                      </Link>
-                    </td>
-                  </tr>
+                    {displayTime(booking.startTime)}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <div
+                className="relative p-3 sm:p-5"
+                style={{ minHeight: height }}
+              >
+                {isToday && nowPosition <= height && (
+                  <div
+                    className="absolute left-0 right-0 z-10 border-t border-dashed border-[var(--vermilion-ink)]"
+                    style={{ top: nowPosition }}
+                  >
+                    <span className="absolute -top-2.5 left-2 bg-[var(--vermilion)] px-1.5 py-0.5 time text-[10px]">
+                      NOW
+                    </span>
+                  </div>
+                )}
+                {visibleOrdered.map((booking, index) => {
+                  const top = 48 + index * rowHeight;
+                  const isRevealed = Boolean(revealed[booking._id]);
+                  const phone = booking.customer?.phone || "";
+                  const maskedPhone = phone
+                    ? `••• ${phone.replace(/\D/g, "").slice(-4)}`
+                    : "Customer details hidden";
+                  const state =
+                    booking.status === "COMPLETED"
+                      ? "Completed"
+                      : booking.status === "CONFIRMED"
+                        ? "Confirmed · paid"
+                        : booking.status === "PENDING_PAYMENT"
+                          ? "Payment pending · time held"
+                          : booking.status;
+                  return (
+                    <article
+                      key={booking._id}
+                      className={`absolute left-3 right-3 min-h-[88px] rounded-md border p-3 sm:left-5 sm:right-5 sm:p-4 ${booking.status === "CONFIRMED" ? "border-[color-mix(in_oklab,var(--pine)_35%,var(--hairline))] bg-[color-mix(in_oklab,var(--pine)_7%,var(--raised))]" : "border-[var(--hairline)] bg-[var(--raised)]"}`}
+                      style={{ top, minHeight: 88 }}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="time text-sm font-bold">
+                              {displayTime(booking.startTime)}–
+                              {displayTime(booking.endTime)}
+                            </span>
+                            <span className="badge">{state}</span>
+                          </div>
+                          <h3 className="mt-1 truncate font-bold">
+                            {booking.serviceId?.name || "Appointment"}
+                          </h3>
+                          <p className="mt-1 text-sm text-[var(--muted-ink)]">
+                            {isRevealed
+                              ? `${booking.customer?.name || "Customer"} · ${phone}`
+                              : maskedPhone}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setRevealed((current) => ({
+                                ...current,
+                                [booking._id]: !current[booking._id],
+                              }))
+                            }
+                            className="min-h-11 rounded-md border border-[var(--hairline)] px-3 text-xs font-semibold"
+                          >
+                            {isRevealed ? "Hide details" : "Reveal"}
+                          </button>
+                          {booking.status === "CONFIRMED" &&
+                            appointmentHasEnded(booking) && (
+                              <button
+                                type="button"
+                                disabled={
+                                  completingId === booking._id ||
+                                  cancellingId === booking._id
+                                }
+                                onClick={() => markComplete(booking)}
+                                className="min-h-11 rounded-md border border-[var(--hairline)] px-3 text-xs font-semibold disabled:opacity-50"
+                              >
+                                {completingId === booking._id
+                                  ? "Saving…"
+                                  : "Mark complete"}
+                              </button>
+                            )}
+                          {["CONFIRMED", "PENDING_PAYMENT"].includes(
+                            booking.status,
+                          ) && (
+                            <button
+                              type="button"
+                              disabled={cancellingId === booking._id}
+                              onClick={() => cancel(booking)}
+                              className="min-h-11 rounded-md px-3 text-xs font-semibold text-[var(--vermilion-ink)] underline disabled:opacity-50"
+                            >
+                              {cancellingId === booking._id
+                                ? "Cancelling"
+                                : "Cancel"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,68 +1,181 @@
 "use client";
 
-import { Calendar, PlusCircle, Sparkles, Store } from "lucide-react";
+import { Menu, Store, X } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getProfile } from "../lib/api";
+import { authChangeEvent, clearAuthToken, getAuthToken } from "../lib/session";
 
 export default function Navbar() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    async function syncUser() {
+      if (!getAuthToken()) {
+        setUser(null);
+        return;
+      }
+      try {
+        const profile = await getProfile();
+        if (active) setUser(profile.data);
+      } catch (error) {
+        if (error.status === 401) clearAuthToken();
+        if (active) setUser(null);
+      }
+    }
+    syncUser();
+    window.addEventListener(authChangeEvent, syncUser);
+    return () => {
+      active = false;
+      window.removeEventListener(authChangeEvent, syncUser);
+    };
+  }, []);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#070a12]/85 backdrop-blur-2xl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-        {/* Brand Logo */}
+    <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[color-mix(in_oklab,var(--paper)_94%,transparent)]">
+      <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:px-8">
         <Link
           href="/"
-          className="flex items-center gap-3.5 group text-decoration-none"
+          className="flex items-center gap-3"
+          aria-label="BookTheSlot home"
         >
-          <div className="relative">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition-all duration-300">
-              <Calendar className="w-5 h-5 text-white" />
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#070a12] flex items-center justify-center">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
-            </span>
-          </div>
-
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold tracking-tight text-white group-hover:text-indigo-200 transition-colors">
-                booktheslot
-              </span>
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Live
-              </span>
-            </div>
-            <span className="text-[11px] text-slate-400 -mt-0.5 font-medium">
-              Multi-Shift Scheduling & Capacity Engine
-            </span>
-          </div>
+          <span className="text-lg font-extrabold tracking-[-.04em]">
+            booktheslot
+          </span>
+          <span className="hidden border-l border-[var(--hairline)] pl-3 text-[11px] text-[var(--muted-ink)] md:inline">
+            Appointments, on your time
+          </span>
         </Link>
-
-        {/* Navigation Actions */}
-        <nav className="flex items-center gap-2.5 sm:gap-3">
+        <nav
+          className="main-desktop-nav hidden items-center gap-4 lg:gap-6 md:flex"
+          aria-label="Main navigation"
+        >
           <Link
-            href="/#explore-stores"
-            className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-xl hover:bg-white/[0.05] transition-all"
+            href="/#discover"
+            className="text-sm font-medium text-[var(--muted-ink)] hover:text-[var(--ink)]"
           >
-            <Store className="w-4 h-4 text-slate-400" />
-            <span>Discover Stores</span>
+            Discover
           </Link>
-
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-xl transition-all shadow-sm"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Merchant Portal</span>
-          </Link>
-
-          <Link
-            href="/register-business"
-            className="btn-primary text-xs py-2 px-3.5 sm:px-4 rounded-xl flex items-center gap-1.5 font-semibold tracking-wide"
-          >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>List Business</span>
-          </Link>
+          {user?.role === "customer" ? (
+            <Link href="/account" className="text-sm font-semibold">
+              My bookings
+            </Link>
+          ) : user?.role === "merchant" && user.businesses?.length ? (
+            <Link href="/dashboard" className="text-sm font-semibold">
+              Merchant workspace
+            </Link>
+          ) : null}
+          {user ? (
+            <button
+              type="button"
+              onClick={clearAuthToken}
+              className="secondary-action text-sm"
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-medium text-[var(--muted-ink)] hover:text-[var(--ink)]"
+            >
+              Sign in
+            </Link>
+          )}
+          {user?.role === "merchant" && !user.businesses?.length ? (
+            <Link href="/register-business" className="primary-action text-sm">
+              Set up your business <span aria-hidden="true">↗</span>
+            </Link>
+          ) : !user || user.role === "customer" ? (
+            <Link
+              href={user ? "/#discover" : "/register-business"}
+              className="primary-action text-sm"
+            >
+              {user ? "Find an appointment" : "For local businesses"}{" "}
+              <span aria-hidden="true">↗</span>
+            </Link>
+          ) : null}
         </nav>
+        <button
+          type="button"
+          aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          className="main-menu-toggle inline-flex h-11 w-11 items-center justify-center rounded-md border border-[var(--hairline)] md:hidden"
+        >
+          {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+        </button>
       </div>
+      {menuOpen && (
+        <nav
+          className="main-mobile-nav grid gap-1 border-t border-[var(--hairline)] bg-[var(--raised)] p-3 md:hidden"
+          aria-label="Mobile navigation"
+        >
+          <Link
+            onClick={() => setMenuOpen(false)}
+            className="rounded-md px-3 py-3 text-sm"
+            href="/#discover"
+          >
+            Discover businesses
+          </Link>
+          {user?.role === "customer" ? (
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="rounded-md px-3 py-3 text-sm"
+              href="/account"
+            >
+              My bookings
+            </Link>
+          ) : user?.role === "merchant" && user.businesses?.length ? (
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="rounded-md px-3 py-3 text-sm"
+              href="/dashboard"
+            >
+              Merchant workspace
+            </Link>
+          ) : null}
+          {user ? (
+            <button
+              type="button"
+              onClick={() => {
+                clearAuthToken();
+                setMenuOpen(false);
+              }}
+              className="secondary-action justify-start rounded-md px-3 py-3 text-sm"
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="rounded-md px-3 py-3 text-sm"
+              href="/login"
+            >
+              Sign in
+            </Link>
+          )}
+          {user?.role === "merchant" && !user.businesses?.length ? (
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="primary-action mt-1 text-sm"
+              href="/register-business"
+            >
+              <Store size={16} /> Set up your business
+            </Link>
+          ) : !user || user.role === "customer" ? (
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="primary-action mt-1 text-sm"
+              href={user ? "/#discover" : "/register-business"}
+            >
+              <Store size={16} />
+              {user ? "Find an appointment" : "For local businesses"}
+            </Link>
+          ) : null}
+        </nav>
+      )}
     </header>
   );
 }
